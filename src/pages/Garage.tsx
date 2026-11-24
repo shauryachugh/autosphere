@@ -38,6 +38,46 @@ export const Garage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'vehicles' | 'documents' | 'services'>('vehicles');
 
+  if (vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              My Garage
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Multi-vehicle connected telematics, digital DigiLocker document vault and service tracking
+            </p>
+          </div>
+          <Button
+            onClick={openAddVehicle}
+            variant="primary"
+            size="sm"
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Add New Vehicle
+          </Button>
+        </div>
+
+        <Card>
+          <div className="py-16 text-center max-w-md mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mx-auto flex items-center justify-center shadow-glow-subtle">
+              <Car className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-white">No Vehicles Registered</h3>
+            <p className="text-sm text-slate-400">
+              Start building your connected fleet. Add your vehicle to monitor telematics, DigiLocker compliance, and service intervals.
+            </p>
+            <Button onClick={openAddVehicle} variant="primary" icon={<Plus className="w-4 h-4" />}>
+              Add Vehicle
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   const selectedCar = vehicles.find((v) => v.id === activeVehicleId) || vehicles[0];
 
   const handleDownloadDoc = (title: string) => {

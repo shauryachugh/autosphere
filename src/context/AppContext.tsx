@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { aiAssistantService } from '../services/aiAssistantService';
+import { synthesizeVehicleContext } from '../services/aiContextService';
 import { 
   Vehicle, 
   Expense, 
@@ -32,15 +36,15 @@ interface AppContextType {
   activeVehicleId: string;
   activeVehicle: Vehicle;
   setActiveVehicleId: (id: string) => void;
-  addVehicle: (vehicle: Partial<Vehicle> & Pick<Vehicle, 'make' | 'model' | 'variant' | 'year' | 'regNumber' | 'fuelType' | 'transmission' | 'odoKm' | 'city' | 'state'>) => void;
-  updateVehicle: (id: string, updates: Partial<Vehicle>) => void;
-  deleteVehicle: (id: string) => void;
+  addVehicle: (vehicle: Partial<Vehicle> & Pick<Vehicle, 'make' | 'model' | 'variant' | 'year' | 'regNumber' | 'fuelType' | 'transmission' | 'odoKm' | 'city' | 'state'>) => Promise<Vehicle | null>;
+  updateVehicle: (id: string, updates: Partial<Vehicle>) => Promise<void>;
+  deleteVehicle: (id: string) => Promise<void>;
 
   // Expenses
   expenses: Expense[];
   activeVehicleExpenses: Expense[];
-  addExpense: (expense: Omit<Expense, 'id'>) => void;
-  deleteExpense: (id: string) => void;
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
 
   // Diagnostics & Health
   diagnostics: DiagnosticIssue[];
@@ -76,6 +80,7 @@ interface AppContextType {
   // AI Assistant Chat
   chatMessages: ChatMessage[];
   sendUserMessage: (content: string) => Promise<void>;
+  clearChatHistory: () => void;
   isAiTyping: boolean;
 
   // Global Modals
@@ -104,6 +109,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isGuest } = useAuth();
+
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
     const saved = localStorage.getItem('autosphere_vehicles');
     return saved ? JSON.parse(saved) : initialVehicles;
@@ -118,6 +125,135 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('autosphere_expenses');
     return saved ? JSON.parse(saved) : initialExpenses;
   });
+
+  // Sync Supabase data when real authenticated user is loaded
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!user && !isGuest) {
+      setVehicles([]);
+      setExpenses([]);
+      setActiveVehicleId('');
+      return;
+    }
+
+    if (isGuest) {
+      const savedVehicles = localStorage.getItem('autosphere_vehicles');
+      setVehicles(savedVehicles ? JSON.parse(savedVehicles) : initialVehicles);
+      const savedExpenses = localStorage.getItem('autosphere_expenses');
+      setExpenses(savedExpenses ? JSON.parse(savedExpenses) : initialExpenses);
+      const savedActive = localStorage.getItem('autosphere_active_vehicle');
+      setActiveVehicleId(savedActive || 'veh-xuv700-01');
+      return;
+    }
+
+    if (!isSupabaseConfigured || !user) return;
+
+    async function syncSupabase() {
+      try {
+        // 1. Vehicles from Supabase
+        const { data: dbVehicles, error: vErr } = await (supabase
+          .from('vehicles') as any)
+          .select('*')
+          .eq('user_id', user!.id)
+          .order('created_at', { ascending: false });
+
+        if (!vErr && isMounted) {
+          if (dbVehicles && dbVehicles.length > 0) {
+            const mappedVehicles: Vehicle[] = (dbVehicles as any[]).map((v) => ({
+              id: v.id,
+              make: v.make,
+              model: v.model,
+              variant: v.variant,
+              year: v.manufacturing_year,
+              manufacturingYear: v.manufacturing_year,
+              registrationYear: v.registration_year,
+              regNumber: v.registration_number,
+              vin: v.vin || '',
+              fuelType: v.fuel_type as any,
+              transmission: v.transmission as any,
+              bodyType: (v.body_type as any) || 'suv',
+              powerBhp: v.power_bhp || 150,
+              torqueNm: v.torque_nm || 300,
+              odoKm: v.current_odometer,
+              purchasePriceINR: Number(v.purchase_price) || 0,
+              purchaseDate: v.purchase_date || undefined,
+              currentFuelPercent: v.current_fuel_percent || 70,
+              batteryHealthPercent: v.battery_health_percent || 98,
+              estimatedRangeKm: v.estimated_range_km || 450,
+              avgEfficiency: v.avg_efficiency || '14.2 km/l',
+              insurancePolicyNumber: v.insurance_policy_number || '',
+              insuranceExpiryDate: v.insurance_expiry_date || '2027-04-18',
+              insuranceProvider: v.insurance_provider || 'HDFC ERGO General Insurance',
+              pucExpiryDate: v.puc_expiry_date || '2027-01-15',
+              lastServiceDate: v.last_service_date || '2026-08-10',
+              lastServiceKm: v.last_service_km || 20000,
+              nextServiceDueDate: v.next_service_due_date || '2027-02-10',
+              nextServiceDueKm: v.next_service_due_km || 30000,
+              healthScore: v.health_score || 95,
+              image: v.image_url || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+              isPrimary: v.is_primary,
+              city: v.registration_city,
+              state: v.registration_state,
+              fastagBalanceINR: 1500,
+              connectedCarPlatform: (v.connected_car_platform as any) || 'AdrenoX',
+              connectedStatus: (v.connected_status as any) || 'online',
+              tyrePressurePsi: {
+                frontLeft: v.tyre_pressure_front_left || 34,
+                frontRight: v.tyre_pressure_front_right || 34,
+                rearLeft: v.tyre_pressure_rear_left || 33,
+                rearRight: v.tyre_pressure_rear_right || 33,
+                spare: v.tyre_pressure_spare || 34,
+              },
+            }));
+            setVehicles(mappedVehicles);
+            setActiveVehicleId((prev) => mappedVehicles.some((m) => m.id === prev) ? prev : mappedVehicles[0].id);
+          } else {
+            // User has 0 vehicles in Supabase — clean empty state, no mock data!
+            setVehicles([]);
+            setActiveVehicleId('');
+          }
+        } else if (vErr) {
+          console.error('Error fetching vehicles from Supabase:', vErr);
+        }
+
+        // 2. Vehicle Expenses from Supabase
+        const { data: dbExpenses, error: eErr } = await (supabase
+          .from('vehicle_expenses') as any)
+          .select('*')
+          .eq('user_id', user!.id)
+          .order('expense_date', { ascending: false });
+
+        if (!eErr && isMounted) {
+          if (dbExpenses && dbExpenses.length > 0) {
+            const mappedExpenses: Expense[] = (dbExpenses as any[]).map((e) => ({
+              id: e.id,
+              vehicleId: e.vehicle_id,
+              category: e.category as any,
+              amountINR: Number(e.amount_inr),
+              date: e.expense_date,
+              odoKm: e.odometer_km || 0,
+              vendor: e.vendor,
+              notes: e.notes || '',
+              paymentMethod: e.payment_method as any,
+              receiptAttached: e.receipt_attached,
+              fuelLitresOrUnits: e.fuel_litres_or_units ? Number(e.fuel_litres_or_units) : undefined,
+            }));
+            setExpenses(mappedExpenses);
+          } else {
+            setExpenses([]);
+          }
+        } else if (eErr) {
+          console.error('Error fetching expenses from Supabase:', eErr);
+        }
+      } catch (err) {
+        console.error('Supabase synchronization error:', err);
+      }
+    }
+
+    syncSupabase();
+    return () => { isMounted = false; };
+  }, [user, isGuest]);
 
   const [diagnostics, setDiagnostics] = useState<DiagnosticIssue[]>(() => {
     const saved = localStorage.getItem('autosphere_diagnostics');
@@ -141,7 +277,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [serviceBookings, setServiceBookings] = useState<ServiceBooking[]>([]);
   const [cart, setCart] = useState<{ item: Accessory; quantity: number }[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(sampleChatMessages);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    const saved = aiAssistantService.getChatHistory();
+    return saved && saved.length > 0 ? saved : sampleChatMessages;
+  });
   const [isAiTyping, setIsAiTyping] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
 
@@ -197,30 +336,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const activeVehicle = vehicles.find((v) => v.id === activeVehicleId) || vehicles[0] || initialVehicles[0];
 
-  const activeVehicleExpenses = expenses.filter((e) => e.vehicleId === activeVehicle.id);
+  const activeVehicleExpenses = expenses.filter((e) => activeVehicle && e.vehicleId === activeVehicle.id);
 
-  const addVehicle = (newVehicleData: Partial<Vehicle> & Pick<Vehicle, 'make' | 'model' | 'variant' | 'year' | 'regNumber' | 'fuelType' | 'transmission' | 'odoKm' | 'city' | 'state'>) => {
-    const id = `veh-${Date.now().toString(36)}`;
-    const newVehicle: Vehicle = {
+  const addVehicle = async (
+    newVehicleData: Partial<Vehicle> &
+      Pick<Vehicle, 'make' | 'model' | 'variant' | 'year' | 'regNumber' | 'fuelType' | 'transmission' | 'odoKm' | 'city' | 'state'>
+  ): Promise<Vehicle | null> => {
+    const tempId = `veh-${Date.now().toString(36)}`;
+    const baseVehicle: Vehicle = {
       bodyType: 'suv',
-      vin: 'MA1' + Math.random().toString(36).substring(2, 10).toUpperCase(),
+      vin: newVehicleData.vin || ('MA1' + Math.random().toString(36).substring(2, 10).toUpperCase()),
       currentFuelPercent: 75,
       estimatedRangeKm: 450,
-      avgEfficiency: '14.2 km/l',
+      avgEfficiency: newVehicleData.fuelType === 'electric' ? '135 Wh/km' : '14.2 km/l',
       insurancePolicyNumber: 'HDFC-ERGO-' + Math.floor(100000 + Math.random() * 900000),
       insuranceExpiryDate: '2027-05-20',
       insuranceProvider: 'HDFC ERGO General Insurance',
       pucExpiryDate: '2027-02-18',
       lastServiceDate: '2026-06-10',
-      lastServiceKm: 10000,
+      lastServiceKm: Math.max(0, (newVehicleData.odoKm || 10000) - 5000),
       nextServiceDueDate: '2027-06-10',
-      nextServiceDueKm: 20000,
-      image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
-      powerBhp: 170,
-      torqueNm: 350,
+      nextServiceDueKm: (newVehicleData.odoKm || 10000) + 10000,
+      image: newVehicleData.image || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+      powerBhp: newVehicleData.fuelType === 'electric' ? 145 : 170,
+      torqueNm: newVehicleData.fuelType === 'electric' ? 250 : 350,
       fastagBalanceINR: 1000,
       ...newVehicleData,
-      id,
+      id: tempId,
       healthScore: 95,
       isPrimary: vehicles.length === 0,
       connectedStatus: 'online',
@@ -232,48 +374,225 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         spare: 34,
       },
     };
-    setVehicles((prev) => [...prev, newVehicle]);
-    setActiveVehicleId(id);
-    showToast(`${newVehicle.make} ${newVehicle.model} added to your garage!`, 'success');
+
+    // Persist to Supabase if connected and authenticated
+    if (isSupabaseConfigured && user && !isGuest) {
+      try {
+        const { data, error } = await (supabase.from('vehicles') as any)
+          .insert([{
+            user_id: user.id,
+            make: baseVehicle.make,
+            model: baseVehicle.model,
+            variant: baseVehicle.variant,
+            manufacturing_year: baseVehicle.manufacturingYear || baseVehicle.year,
+            registration_year: baseVehicle.registrationYear || baseVehicle.year,
+            registration_number: baseVehicle.regNumber,
+            vin: baseVehicle.vin,
+            fuel_type: baseVehicle.fuelType,
+            transmission: baseVehicle.transmission,
+            body_type: baseVehicle.bodyType,
+            current_odometer: baseVehicle.odoKm,
+            purchase_price: baseVehicle.purchasePriceINR || 2400000,
+            purchase_date: baseVehicle.purchaseDate || new Date().toISOString().split('T')[0],
+            registration_state: baseVehicle.state,
+            registration_city: baseVehicle.city,
+            power_bhp: baseVehicle.powerBhp,
+            torque_nm: baseVehicle.torqueNm,
+            current_fuel_percent: baseVehicle.currentFuelPercent,
+            health_score: baseVehicle.healthScore,
+            is_primary: baseVehicle.isPrimary,
+            image_url: baseVehicle.image,
+            connected_car_platform: baseVehicle.connectedCarPlatform || 'AdrenoX',
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error inserting vehicle into Supabase:', error);
+          showToast('Failed to save vehicle: ' + error.message, 'error');
+          return null;
+        }
+
+        if (data) {
+          const persistedVehicle: Vehicle = {
+            ...baseVehicle,
+            id: data.id, // True PostgreSQL UUID
+          };
+          setVehicles((prev) => [persistedVehicle, ...prev]);
+          setActiveVehicleId(persistedVehicle.id);
+          showToast(`${persistedVehicle.make} ${persistedVehicle.model} added to your garage!`, 'success');
+          return persistedVehicle;
+        }
+      } catch (err: any) {
+        console.error('Exception inserting vehicle into Supabase:', err);
+        showToast('Error saving vehicle: ' + err.message, 'error');
+        return null;
+      }
+    }
+
+    setVehicles((prev) => [baseVehicle, ...prev]);
+    setActiveVehicleId(tempId);
+    showToast(`${baseVehicle.make} ${baseVehicle.model} added to your garage!`, 'success');
+    return baseVehicle;
   };
 
-  const updateVehicle = (id: string, updates: Partial<Vehicle>) => {
+  const updateVehicle = async (id: string, updates: Partial<Vehicle>) => {
     setVehicles((prev) =>
       prev.map((v) => (v.id === id ? { ...v, ...updates } : v))
     );
+
+    if (isSupabaseConfigured && user && !isGuest) {
+      try {
+        const dbUpdates: any = {};
+        if (updates.odoKm !== undefined) dbUpdates.current_odometer = updates.odoKm;
+        if (updates.healthScore !== undefined) dbUpdates.health_score = updates.healthScore;
+        if (updates.currentFuelPercent !== undefined) dbUpdates.current_fuel_percent = updates.currentFuelPercent;
+        if (updates.avgEfficiency !== undefined) dbUpdates.avg_efficiency = updates.avgEfficiency;
+        if (updates.isPrimary !== undefined) dbUpdates.is_primary = updates.isPrimary;
+        if (updates.insuranceExpiryDate !== undefined) dbUpdates.insurance_expiry_date = updates.insuranceExpiryDate;
+        if (updates.pucExpiryDate !== undefined) dbUpdates.puc_expiry_date = updates.pucExpiryDate;
+
+        const { error } = await (supabase.from('vehicles') as any)
+          .update(dbUpdates)
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error updating vehicle in Supabase:', error);
+          showToast('Failed to update vehicle in database: ' + error.message, 'error');
+          return;
+        }
+      } catch (err: any) {
+        console.error('Exception updating vehicle in Supabase:', err);
+        showToast('Error updating vehicle: ' + err.message, 'error');
+        return;
+      }
+    }
+
     showToast('Vehicle details updated successfully.', 'success');
   };
 
-  const deleteVehicle = (id: string) => {
+  const deleteVehicle = async (id: string) => {
     if (vehicles.length <= 1) {
       showToast('You must keep at least one vehicle in your garage.', 'warning');
       return;
     }
+
+    if (isSupabaseConfigured && user && !isGuest) {
+      try {
+        const { error } = await (supabase.from('vehicles') as any)
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error deleting vehicle from Supabase:', error);
+          showToast('Failed to delete vehicle: ' + error.message, 'error');
+          return;
+        }
+      } catch (err: any) {
+        console.error('Exception deleting vehicle from Supabase:', err);
+        showToast('Error deleting vehicle: ' + err.message, 'error');
+        return;
+      }
+    }
+
     const remaining = vehicles.filter((v) => v.id !== id);
     setVehicles(remaining);
     if (activeVehicleId === id) {
-      setActiveVehicleId(remaining[0].id);
+      setActiveVehicleId(remaining[0]?.id || '');
     }
+
     showToast('Vehicle removed from garage.', 'info');
   };
 
-  const addExpense = (newExpenseData: Omit<Expense, 'id'>) => {
+  const addExpense = async (newExpenseData: Omit<Expense, 'id'>) => {
+    if (isSupabaseConfigured && user && !isGuest) {
+      try {
+        const { data, error } = await (supabase.from('vehicle_expenses') as any)
+          .insert([{
+            user_id: user.id,
+            vehicle_id: newExpenseData.vehicleId,
+            category: newExpenseData.category,
+            amount_inr: newExpenseData.amountINR,
+            expense_date: newExpenseData.date,
+            odometer_km: newExpenseData.odoKm,
+            vendor: newExpenseData.vendor,
+            notes: newExpenseData.notes,
+            payment_method: newExpenseData.paymentMethod,
+            receipt_attached: newExpenseData.receiptAttached || false,
+            fuel_litres_or_units: newExpenseData.fuelLitresOrUnits,
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error saving expense to Supabase:', error);
+          showToast('Failed to save expense: ' + error.message, 'error');
+          return;
+        }
+
+        if (data) {
+          const newExpense: Expense = {
+            id: data.id,
+            vehicleId: data.vehicle_id,
+            category: data.category as any,
+            amountINR: Number(data.amount_inr),
+            date: data.expense_date,
+            odoKm: data.odometer_km || 0,
+            vendor: data.vendor,
+            notes: data.notes || '',
+            paymentMethod: data.payment_method as any,
+            receiptAttached: data.receipt_attached,
+            fuelLitresOrUnits: data.fuel_litres_or_units ? Number(data.fuel_litres_or_units) : undefined,
+          };
+          setExpenses((prev) => [newExpense, ...prev]);
+
+          if (newExpense.odoKm && activeVehicle && newExpense.odoKm > activeVehicle.odoKm) {
+            updateVehicle(newExpense.vehicleId, { odoKm: newExpense.odoKm });
+          }
+
+          showToast(`Expense of ₹${newExpense.amountINR.toLocaleString('en-IN')} logged.`, 'success');
+          return;
+        }
+      } catch (err: any) {
+        console.error('Exception saving expense to Supabase:', err);
+        showToast('Error saving expense: ' + err.message, 'error');
+        return;
+      }
+    }
+
     const id = `exp-${Date.now()}`;
-    const newExpense: Expense = {
-      ...newExpenseData,
-      id,
-    };
+    const newExpense: Expense = { ...newExpenseData, id };
     setExpenses((prev) => [newExpense, ...prev]);
 
-    // Update vehicle odometer if expense odo is higher
-    if (newExpense.odoKm && newExpense.odoKm > activeVehicle.odoKm) {
+    if (newExpense.odoKm && activeVehicle && newExpense.odoKm > activeVehicle.odoKm) {
       updateVehicle(newExpense.vehicleId, { odoKm: newExpense.odoKm });
     }
 
     showToast(`Expense of ₹${newExpense.amountINR.toLocaleString('en-IN')} logged.`, 'success');
   };
 
-  const deleteExpense = (id: string) => {
+  const deleteExpense = async (id: string) => {
+    if (isSupabaseConfigured && user && !isGuest) {
+      try {
+        const { error } = await (supabase.from('vehicle_expenses') as any)
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error deleting expense from Supabase:', error);
+          showToast('Failed to delete expense: ' + error.message, 'error');
+          return;
+        }
+      } catch (err: any) {
+        console.error('Exception deleting expense from Supabase:', err);
+        showToast('Error deleting expense: ' + err.message, 'error');
+        return;
+      }
+    }
+
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     showToast('Expense entry deleted.', 'info');
   };
@@ -364,101 +683,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatMessages((prev) => [...prev, userMsg]);
+    const updatedWithUser = [...chatMessages, userMsg];
+    setChatMessages(updatedWithUser);
+    aiAssistantService.saveChatHistory(userProfile?.email, updatedWithUser);
     setIsAiTyping(true);
 
-    // Simulate intelligent contextual automotive responses
-    setTimeout(() => {
-      const lower = content.toLowerCase();
-      let replyContent = '';
-      let structuredData: ChatMessage['structuredData'] | undefined = undefined;
-      let suggestions: string[] = [];
-
-      if (lower.includes('service') || lower.includes('estimate') || lower.includes('cost')) {
-        replyContent = `Based on genuine OEM parts data for your ${activeVehicle.make} ${activeVehicle.model} at ~${activeVehicle.odoKm.toLocaleString('en-IN')} km, an authorized 30,000 km service typically costs between ₹12,500 and ₹15,200 in Bengaluru.`;
-        structuredData = {
-          type: 'cost_estimate',
-          title: '30,000 km Service Fair Price Breakdown',
-          items: [
-            { label: 'Synthetic Engine Oil (MaxiMile 6L)', value: '₹4,850' },
-            { label: 'Oil Filter & O-Rings', value: '₹480' },
-            { label: 'Air & Cabin AC Microfilter', value: '₹1,250' },
-            { label: 'Fuel Filter Cartridge', value: '₹2,100' },
-            { label: 'Brake Inspection & Caliper Greasing', value: '₹950' },
-            { label: 'Labor Charges (Authorized)', value: '₹3,200' },
-            { label: 'GST @ 18%', value: '₹2,309' },
-            { label: 'Total Estimated Fair Cost', value: '₹15,139' },
-          ],
-          actionButton: { label: 'Book Authorized Service', link: '/garage' },
-        };
-        suggestions = ['Decline unnecessary engine decarb flushes', 'Check brake pad thickness', 'Ask about prepaid service pack'];
-      } else if (lower.includes('dpf') || lower.includes('p2463') || lower.includes('soot') || lower.includes('error')) {
-        replyContent = `Error Code P2463 indicates Diesel Particulate Filter Soot Accumulation (currently at ~68% in your telematics). This is very common in Indian bumper-to-bumper traffic when the exhaust gas temperature doesn't get hot enough for passive regeneration.`;
-        structuredData = {
-          type: 'dtc_diagnostics',
-          title: 'OBD-II Fault Diagnostics: P2463',
-          items: [
-            { label: 'Subsystem', value: 'Exhaust & Emissions' },
-            { label: 'Current Soot Mass', value: '68% (Warning Threshold)' },
-            { label: 'Immediate Risk', value: 'Low (Safe for normal driving up to 80%)' },
-            { label: 'DIY Highway Fix', value: '25 min drive at >2000 RPM on NICE Road' },
-            { label: 'Service Center Cost', value: '₹0 (If DIY done) or ₹1,800 (Forced Regen)' },
-          ],
-          actionButton: { label: 'View Health Telematics', link: '/vehicle-health' },
-        };
-        suggestions = ['How to prevent DPF clogging in city traffic?', 'Is it covered under Mahindra warranty?', 'Show tyre pressures'];
-      } else if (lower.includes('ev') || lower.includes('hybrid') || lower.includes('replace') || lower.includes('switch')) {
-        replyContent = `If you drive ~1,250 km monthly in Bengaluru, switching from your Diesel XUV700 (₹6.8 / km) to an EV like Tata Harrier.ev or Nexon EV (₹1.4 / km) will save you approximately ₹6,750 per month, or ₹81,000 annually in fuel alone!`;
-        structuredData = {
-          type: 'comparison',
-          title: 'Diesel vs EV 5-Year Ownership TCO',
-          items: [
-            { label: 'Current Diesel Cost (5 Yrs)', value: '₹5,10,000' },
-            { label: 'EV Electricity Cost (5 Yrs)', value: '₹1,05,000' },
-            { label: 'Net Fuel Savings', value: '₹4,05,000' },
-            { label: 'Road Tax Exemption in KA', value: '₹3,80,000 (Savings)' },
-            { label: '5-Year Total Benefit', value: '₹7,85,000' },
-          ],
-          actionButton: { label: 'Explore Smart Recommendations', link: '/recommendations' },
-        };
-        suggestions = ['Compare Toyota Innova Hycross Hybrid', 'What is battery warranty on Tata EVs?', 'Check my car exchange value'];
-      } else if (lower.includes('challan') || lower.includes('rto') || lower.includes('traffic')) {
-        replyContent = `AutoSphere connects with the Parivahan national database. For your vehicle ${activeVehicle.regNumber}, there is currently 0 pending e-challans on Karnataka One / Bengaluru Traffic Police portal.`;
-        structuredData = {
-          type: 'rto_guide',
-          title: 'Parivahan RTO & Challan Status',
-          items: [
-            { label: 'Registration Number', value: activeVehicle.regNumber },
-            { label: 'Registered RTO', value: 'KA-03 (Indiranagar, Bengaluru)' },
-            { label: 'Pending Challans', value: '₹0 (Clear)' },
-            { label: 'PUC Status', value: 'Valid till 15 Jan 2027' },
-          ],
-          actionButton: { label: 'View Documents Vault', link: '/garage' },
-        };
-        suggestions = ['How to renew PUC online?', 'Check FASTag balance', 'Calculate car resale value'];
-      } else {
-        replyContent = `I understand your query regarding "${content}". With AutoSphere's connected intelligence engine, we track your vehicle's mechanical telemetry, service intervals, and operating expenses in real-time. Would you like me to analyze your fuel trends, book a certified service, or check your car's fair market valuation?`;
-        suggestions = [
-          'What is my car\'s current market value?',
-          'How can I lower my monthly vehicle expenses?',
-          'Run a live OBD-II diagnostic scan',
-          'Show top recommended replacement cars',
-        ];
-      }
+    try {
+      const context = synthesizeVehicleContext(activeVehicle, activeVehicleExpenses, diagnostics);
+      const aiResponse = await aiAssistantService.sendMessage(content, context, chatMessages);
 
       const botMsgId = `chat-bot-${Date.now()}`;
       const botMsg: ChatMessage = {
         id: botMsgId,
         sender: 'assistant',
-        content: replyContent,
+        content: aiResponse.content,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        structuredData,
-        suggestions,
+        structuredData: aiResponse.structuredData,
+        suggestions: aiResponse.suggestions,
       };
 
-      setChatMessages((prev) => [...prev, botMsg]);
+      const finalMessages = [...updatedWithUser, botMsg];
+      setChatMessages(finalMessages);
+      aiAssistantService.saveChatHistory(userProfile?.email, finalMessages);
+    } catch (err) {
+      console.error('Error generating AI response:', err);
+      const errorMsg: ChatMessage = {
+        id: `chat-error-${Date.now()}`,
+        sender: 'assistant',
+        content: 'I encountered a temporary connection issue. Please try again or select one of the suggested prompts below.',
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        suggestions: ['Which car should I buy under ₹10 lakh?', 'What maintenance does my car need?'],
+      };
+      const fallbackList = [...updatedWithUser, errorMsg];
+      setChatMessages(fallbackList);
+      aiAssistantService.saveChatHistory(userProfile?.email, fallbackList);
+    } finally {
       setIsAiTyping(false);
-    }, 900);
+    }
+  };
+
+  const clearChatHistory = () => {
+    aiAssistantService.clearChatHistory(userProfile?.email);
+    setChatMessages([]);
   };
 
   return (
@@ -504,6 +770,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         chatMessages,
         sendUserMessage,
+        clearChatHistory,
         isAiTyping,
 
         isLogExpenseOpen,

@@ -1,408 +1,394 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Sparkles, 
-  Fuel, 
-  Zap, 
-  ShieldCheck, 
+  Car, 
   SlidersHorizontal, 
+  Layers, 
+  History, 
   ArrowRight, 
   Check, 
-  X, 
-  IndianRupee, 
-  Layers,
-  ChevronRight,
-  Calculator
+  RotateCcw,
+  CheckCircle2,
+  Bookmark
 } from 'lucide-react';
-import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
-import { formatINR, formatLakhsCrores } from '../utils/formatters';
-import { replacementCars } from '../data/mockData';
-import { ReplacementCar, FuelType } from '../types';
+import { CurrentVehicleStep } from '../components/recommendations/CurrentVehicleStep';
+import { ReplacementCriteriaStep } from '../components/recommendations/ReplacementCriteriaStep';
+import { RankedCarsStep } from '../components/recommendations/RankedCarsStep';
+import { ComparisonDashboard } from '../components/recommendations/ComparisonDashboard';
+import { FinalVerdictCard } from '../components/recommendations/FinalVerdictCard';
+import { SavedAnalysesDrawer } from '../components/recommendations/SavedAnalysesDrawer';
+import { indianCarCatalogue } from '../data/indianCarCatalogue';
+import { 
+  CurrentVehicleAnalysis, 
+  ReplacementRequirements, 
+  CurrentCarTCO, 
+  ReplacementCarTCO, 
+  FinalVerdict,
+  SavedRecommendationAnalysis 
+} from '../types/replacement.types';
+import { 
+  calculateCurrentCarTCO, 
+  rankReplacementCars, 
+  generateFinalVerdict 
+} from '../utils/tcoCalculator';
+import { recommendationService } from '../services/recommendationService';
 
 export const Recommendations: React.FC = () => {
-  const { activeVehicle } = useApp();
+  const { activeVehicle, activeVehicleExpenses, showToast } = useApp();
+  const { user, isGuest } = useAuth();
 
-  // Filters & Driving Habit Simulator
-  const [selectedFuel, setSelectedFuel] = useState<string>('all');
-  const [selectedBody, setSelectedBody] = useState<string>('all');
-  const [monthlyKm, setMonthlyKm] = useState<number>(1200);
-  const [cityHighwayRatio, setCityHighwayRatio] = useState<number>(70); // 70% city, 30% highway
-  const [comparedCar, setComparedCar] = useState<ReplacementCar | null>(null);
+  // Wizard Step: 1 = Current Vehicle, 2 = Requirements, 3 = Ranked Matches, 4 = Comparison Matrix, 5 = Final Verdict
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
-  // Filtered cars
-  const filteredCars = replacementCars.filter((car) => {
-    if (selectedFuel !== 'all' && car.fuelType !== selectedFuel) return false;
-    if (selectedBody !== 'all' && car.bodyType !== selectedBody) return false;
-    return true;
+  // Saved analyses drawer
+  const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
+  const [savedAnalyses, setSavedAnalyses] = useState<SavedRecommendationAnalysis[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // 1. Current Vehicle Initial State
+  const [currentVehicleData, setCurrentVehicleData] = useState<CurrentVehicleAnalysis>(() => {
+    // Derive monthly fuel from activeVehicleExpenses
+    const fuelExpenses = activeVehicleExpenses.filter(
+      (e) => activeVehicle && e.vehicleId === activeVehicle.id && (e.category === 'fuel' || e.category === 'charging')
+    );
+    const totalFuelLogged = fuelExpenses.reduce((sum, e) => sum + e.amountINR, 0);
+    const estimatedMonthlyFuel = fuelExpenses.length > 0 
+      ? Math.round(totalFuelLogged / Math.max(1, Math.min(6, fuelExpenses.length)))
+      : activeVehicle?.fuelType === 'electric' ? 1800 : activeVehicle?.fuelType === 'diesel' ? 8200 : 9500;
+
+    const serviceExpenses = activeVehicleExpenses.filter(
+      (e) => activeVehicle && e.vehicleId === activeVehicle.id && e.category === 'service'
+    );
+    const totalServiceLogged = serviceExpenses.reduce((sum, e) => sum + e.amountINR, 0);
+    const estimatedAnnualMaint = serviceExpenses.length > 0
+      ? totalServiceLogged
+      : activeVehicle?.fuelType === 'electric' ? 7500 : 14500;
+
+    const ageYears = Math.max(1, 2026 - (activeVehicle?.manufacturingYear || activeVehicle?.year || 2023));
+    const originalPrice = activeVehicle?.purchasePriceINR || 2200000;
+    const depFactor = Math.pow(0.88, ageYears);
+    const estimatedResale = Math.round(originalPrice * depFactor);
+
+    return {
+      vehicleId: activeVehicle?.id,
+      make: activeVehicle?.make || 'Mahindra',
+      model: activeVehicle?.model || 'XUV700',
+      variant: activeVehicle?.variant || 'AX7L AWD',
+      manufacturingYear: activeVehicle?.manufacturingYear || activeVehicle?.year || 2023,
+      fuelType: activeVehicle?.fuelType || 'diesel',
+      transmission: activeVehicle?.transmission || 'automatic',
+      bodyType: activeVehicle?.bodyType || 'suv',
+      currentOdometer: activeVehicle?.odoKm || 28500,
+      monthlyKmDriven: 1250,
+      monthlyFuelExpenditure: estimatedMonthlyFuel,
+      annualMaintenanceExpenses: estimatedAnnualMaint,
+      annualRepairExpenses: 8000,
+      annualInsuranceExpenses: 34000,
+      currentEstimatedResaleValue: estimatedResale,
+      city: activeVehicle?.city || 'Bengaluru',
+      state: activeVehicle?.state || 'Karnataka',
+    };
   });
 
-  // Calculate dynamic savings based on user driving habits
-  const calculateDynamicAnnualSavings = (car: ReplacementCar) => {
-    // Current car per-km cost (Diesel approx ₹6.8/km, EV ₹1.4/km, Hybrid ₹4.2/km, Petrol ₹8.4/km)
-    const currentCostPerKm = activeVehicle.fuelType === 'diesel' ? 6.8 : activeVehicle.fuelType === 'petrol' ? 8.4 : 1.4;
-    const targetCostPerKm = car.fuelType === 'electric' ? 1.4 : car.fuelType === 'hybrid' ? 4.2 : 6.8;
-    const annualKm = monthlyKm * 12;
-    const savings = Math.max(0, Math.round((currentCostPerKm - targetCostPerKm) * annualKm));
-    return savings;
+  // 2. Replacement Criteria State
+  const [replacementCriteria, setReplacementCriteria] = useState<ReplacementRequirements>({
+    maxPurchaseBudgetINR: 2500000,
+    preferredMonthlyEmiINR: 28000,
+    downPaymentINR: 400000,
+    applyResaleAsDownPayment: true,
+    loanTenureYears: 5,
+    loanInterestRatePercent: 9.0,
+    preferredFuelType: 'all',
+    transmissionPreference: 'all',
+    vehicleCategory: 'all',
+    monthlyDrivingDistanceKm: 1250,
+    state: currentVehicleData.state || 'Karnataka',
+    city: currentVehicleData.city || 'Bengaluru',
+    cityDrivingPercent: 70,
+    highwayDrivingPercent: 30,
+  });
+
+  // 3. Calculated TCO & Ranked Cars
+  const [currentCarTCO, setCurrentCarTCO] = useState<CurrentCarTCO>(() =>
+    calculateCurrentCarTCO(currentVehicleData)
+  );
+  const [rankedCars, setRankedCars] = useState<ReplacementCarTCO[]>([]);
+  const [selectedCarIds, setSelectedCarIds] = useState<string[]>([]);
+  const [finalVerdict, setFinalVerdict] = useState<FinalVerdict | null>(null);
+
+  // Load saved analyses on mount
+  useEffect(() => {
+    async function loadSaved() {
+      if (user) {
+        const list = await recommendationService.fetchAnalyses(user.id, isGuest);
+        setSavedAnalyses(list);
+      }
+    }
+    loadSaved();
+  }, [user, isGuest]);
+
+  // Handle Step 1 -> Step 2
+  const handleCurrentVehicleSubmit = (data: CurrentVehicleAnalysis) => {
+    setCurrentVehicleData(data);
+    const tco = calculateCurrentCarTCO(data);
+    setCurrentCarTCO(tco);
+    setReplacementCriteria((prev) => ({
+      ...prev,
+      monthlyDrivingDistanceKm: data.monthlyKmDriven,
+      state: data.state,
+      city: data.city,
+    }));
+    setCurrentStep(2);
   };
+
+  // Handle Step 2 -> Step 3
+  const handleReplacementCriteriaSubmit = (criteria: ReplacementRequirements) => {
+    setReplacementCriteria(criteria);
+
+    // Run deterministic ranking engine
+    const ranked = rankReplacementCars(
+      indianCarCatalogue,
+      criteria,
+      currentCarTCO,
+      currentVehicleData.currentEstimatedResaleValue
+    );
+
+    setRankedCars(ranked);
+
+    // Pre-select top 2-3 matching cars for comparison
+    const initialSelection = ranked.slice(0, 3).map((r) => r.car.id);
+    setSelectedCarIds(initialSelection);
+
+    // Generate deterministic verdict
+    const verdict = generateFinalVerdict(currentCarTCO, ranked, criteria, currentVehicleData);
+    setFinalVerdict(verdict);
+    setIsSaved(false);
+
+    setCurrentStep(3);
+  };
+
+  // Toggle selection for comparison matrix (max 3)
+  const handleToggleCarSelection = (id: string) => {
+    if (selectedCarIds.includes(id)) {
+      setSelectedCarIds(selectedCarIds.filter((cid) => cid !== id));
+    } else {
+      if (selectedCarIds.length >= 3) {
+        showToast('You can compare a maximum of 3 replacement vehicles at once.', 'warning');
+        return;
+      }
+      setSelectedCarIds([...selectedCarIds, id]);
+    }
+  };
+
+  // Save current analysis to Supabase
+  const handleSaveAnalysis = async () => {
+    if (!finalVerdict) return;
+    setIsSaving(true);
+    try {
+      const saved = await recommendationService.saveAnalysis(
+        {
+          userId: user?.id || 'guest',
+          vehicleId: currentVehicleData.vehicleId || null,
+          title: `Replacement Analysis: ${currentVehicleData.make} ${currentVehicleData.model}`,
+          currentVehicleData,
+          replacementCriteria,
+          currentCarTCO,
+          recommendedCars: rankedCars,
+          comparedCarIds: selectedCarIds,
+          verdict: finalVerdict.outcome,
+          verdictDetails: finalVerdict,
+          fiveYearNetDifference: finalVerdict.fiveYearNetDifferenceINR,
+          isSaved: true,
+        },
+        user?.id || 'guest',
+        isGuest
+      );
+
+      setSavedAnalyses((prev) => [saved, ...prev.filter((p) => p.id !== saved.id)]);
+      setIsSaved(true);
+      showToast('Analysis saved to your AutoSphere account and Supabase!', 'success');
+    } catch (err: any) {
+      showToast('Failed to save analysis: ' + err.message, 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Load a past saved analysis
+  const handleLoadSavedAnalysis = (saved: SavedRecommendationAnalysis) => {
+    setCurrentVehicleData(saved.currentVehicleData);
+    setReplacementCriteria(saved.replacementCriteria);
+    setCurrentCarTCO(saved.currentCarTCO);
+    setRankedCars(saved.recommendedCars);
+    setSelectedCarIds(saved.comparedCarIds.length > 0 ? saved.comparedCarIds : saved.recommendedCars.slice(0, 3).map(r => r.car.id));
+    setFinalVerdict(saved.verdictDetails);
+    setIsSaved(true);
+    setCurrentStep(4);
+    showToast(`Loaded saved analysis: ${saved.title}`, 'info');
+  };
+
+  const handleDeleteAnalysis = async (id: string) => {
+    await recommendationService.deleteAnalysis(id, user?.id || 'guest', isGuest);
+    setSavedAnalyses((prev) => prev.filter((a) => a.id !== id));
+    showToast('Analysis removed from your saved records.', 'info');
+  };
+
+  // Restart wizard
+  const handleRestart = () => {
+    setCurrentStep(1);
+    setIsSaved(false);
+  };
+
+  const comparedCarsList = rankedCars.filter((r) => selectedCarIds.includes(r.car.id));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="pb-2 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Smart Car Upgrade Intelligence
-          </h1>
-          <Badge variant="electric" size="sm">
-            AI TCO Match
-          </Badge>
-        </div>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Algorithmic replacement analysis benchmarked against your current {activeVehicle.make} {activeVehicle.model} ({activeVehicle.regNumber})
-        </p>
-      </div>
-
-      {/* Interactive Driving Habit Simulator */}
-      <div className="p-5 rounded-2xl bg-dark-900 border border-slate-800 shadow-card">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+      {/* Top Main Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+        <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-              <SlidersHorizontal className="w-4 h-4" />
-            </span>
-            <span className="text-sm font-bold text-white">
-              Personalized TCO Driving Habit Simulator
-            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Smart Car Replacement Intelligence
+            </h1>
+            <Badge variant="electric" size="sm">
+              Flagship TCO Engine
+            </Badge>
           </div>
-          <span className="text-xs text-slate-400 hidden sm:inline">
-            Real-time Indian fuel & electricity tariff adjustments
-          </span>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Deterministic financial analysis evaluating whether keeping your current car or upgrading is more economical in India
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-          {/* Monthly Driven Distance Slider */}
-          <div>
-            <div className="flex justify-between text-xs font-semibold text-slate-300 mb-1.5">
-              <span>Monthly Commute Distance:</span>
-              <span className="text-cyan-400 font-mono font-bold text-sm">
-                {monthlyKm.toLocaleString('en-IN')} km / month
-              </span>
-            </div>
-            <input
-              type="range"
-              min="400"
-              max="3500"
-              step="50"
-              value={monthlyKm}
-              onChange={(e) => setMonthlyKm(parseInt(e.target.value, 10))}
-              className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-dark-800 rounded-lg"
-            />
-            <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-              <span>400 km (Weekend only)</span>
-              <span>1,200 km (Standard India)</span>
-              <span>3,500 km (Heavy highway)</span>
-            </div>
-          </div>
+        {/* Saved Analyses Drawer Button */}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsSavedDrawerOpen(true)}
+            variant="outline"
+            size="sm"
+            icon={<Bookmark className="w-4 h-4 text-cyan-400" />}
+          >
+            Saved Analyses ({savedAnalyses.length})
+          </Button>
 
-          {/* City vs Highway Driving Ratio */}
-          <div>
-            <div className="flex justify-between text-xs font-semibold text-slate-300 mb-1.5">
-              <span>Traffic Condition Mix:</span>
-              <span className="text-emerald-400 font-mono font-bold text-sm">
-                {cityHighwayRatio}% City / {100 - cityHighwayRatio}% Highway
-              </span>
-            </div>
-            <input
-              type="range"
-              min="20"
-              max="90"
-              step="5"
-              value={cityHighwayRatio}
-              onChange={(e) => setCityHighwayRatio(parseInt(e.target.value, 10))}
-              className="w-full accent-emerald-400 cursor-pointer h-1.5 bg-dark-800 rounded-lg"
-            />
-            <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-              <span>Highway Tourer</span>
-              <span>Mixed Indian Metro</span>
-              <span>Heavy Bangalore Bumper-to-Bumper</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5 bg-dark-900 p-1 rounded-xl border border-slate-800">
-          <span className="text-xs text-slate-400 px-2 font-medium">Fuel:</span>
-          {[
-            { label: 'All Tech', value: 'all' },
-            { label: 'Electric (EV)', value: 'electric' },
-            { label: 'Strong Hybrid', value: 'hybrid' },
-            { label: 'Diesel', value: 'diesel' },
-          ].map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setSelectedFuel(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                selectedFuel === f.value
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+          {currentStep > 1 && (
+            <Button
+              onClick={handleRestart}
+              variant="ghost"
+              size="sm"
+              icon={<RotateCcw className="w-3.5 h-3.5" />}
             >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span>Found {filteredCars.length} algorithmically qualified cars</span>
+              Reset
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Recommended Cars Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredCars.map((car) => {
-          const dynamicSavings = calculateDynamicAnnualSavings(car);
+      {/* Progress Indicator Strip */}
+      <div className="p-3 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between gap-2 overflow-x-auto text-xs font-semibold">
+        {[
+          { step: 1, label: 'Current Vehicle', icon: <Car className="w-3.5 h-3.5" /> },
+          { step: 2, label: 'Replacement Budget', icon: <SlidersHorizontal className="w-3.5 h-3.5" /> },
+          { step: 3, label: 'Ranked Recommendations', icon: <Sparkles className="w-3.5 h-3.5" /> },
+          { step: 4, label: 'Comparison Matrix', icon: <Layers className="w-3.5 h-3.5" /> },
+          { step: 5, label: 'Final Verdict', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+        ].map((s) => {
+          const isActive = currentStep === s.step;
+          const isDone = currentStep > s.step;
 
           return (
-            <div
-              key={car.id}
-              className="rounded-2xl bg-dark-900 border border-slate-800/90 hover:border-slate-700 transition-all duration-200 overflow-hidden shadow-card flex flex-col justify-between"
+            <button
+              key={s.step}
+              type="button"
+              disabled={!isDone && !isActive}
+              onClick={() => isDone && setCurrentStep(s.step as any)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all whitespace-nowrap ${
+                isActive
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-glow-subtle font-bold'
+                  : isDone
+                  ? 'text-slate-300 hover:text-white cursor-pointer bg-dark-850 border border-slate-800'
+                  : 'text-slate-600 cursor-not-allowed border border-transparent'
+              }`}
             >
-              <div>
-                {/* Photo Header */}
-                <div className="relative aspect-[16/9] max-h-56 overflow-hidden">
-                  <img
-                    src={car.image}
-                    alt={car.model}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/30 to-transparent" />
-
-                  <div className="absolute top-3 left-3 flex items-center gap-2">
-                    <Badge variant="electric" size="sm">
-                      {car.upgradeScore}/100 Match Score
-                    </Badge>
-                    <Badge variant={car.fuelType === 'electric' ? 'success' : car.fuelType === 'hybrid' ? 'info' : 'neutral'} size="sm">
-                      {car.fuelType.toUpperCase()}
-                    </Badge>
-                  </div>
-
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-white leading-tight">
-                        {car.make} {car.model}
-                      </h3>
-                      <p className="text-xs text-slate-300">{car.variant}</p>
-                    </div>
-                    <span className="text-xs bg-dark-900/90 text-emerald-300 px-2 py-1 rounded-md border border-emerald-500/30 font-medium">
-                      {car.safetyRating}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Content body */}
-                <div className="p-5 space-y-4">
-                  {/* Financial Highlights */}
-                  <div className="p-3.5 rounded-xl bg-dark-850 border border-slate-800 grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[11px] text-slate-400 block">Ex-Showroom Price</span>
-                      <span className="text-base font-bold text-white font-mono">
-                        {formatINR(car.priceExShowroomINR)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[11px] text-emerald-400 block font-semibold">
-                        Estimated Annual Savings
-                      </span>
-                      <span className="text-base font-bold text-emerald-400 font-mono">
-                        ~{formatINR(dynamicSavings)} / yr
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Why recommended in India */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                      Why Recommended
-                    </h4>
-                    <p className="text-xs text-slate-200 leading-relaxed">
-                      {car.whyRecommended}
-                    </p>
-                  </div>
-
-                  {/* Key Highlights */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {car.highlights.map((h, i) => (
-                      <span
-                        key={i}
-                        className="text-[11px] px-2 py-0.5 rounded-md bg-dark-800 text-slate-300 border border-slate-700/60"
-                      >
-                        ✓ {h}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Specs Quick Strip */}
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 border-y border-slate-800/80">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Power</span>
-                      <span className="font-semibold text-white">{car.powerBhp} BHP</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Torque</span>
-                      <span className="font-semibold text-white">{car.torqueNm} Nm</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Efficiency</span>
-                      <span className="font-semibold text-cyan-300">{car.araiEfficiency}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card Footer Actions */}
-              <div className="p-5 pt-0 flex items-center justify-between gap-3">
-                <Button
-                  onClick={() => setComparedCar(car)}
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  icon={<Layers className="w-4 h-4 text-cyan-400" />}
-                >
-                  Compare with My {activeVehicle.model}
-                </Button>
-              </div>
-            </div>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                isActive ? 'bg-cyan-400 text-dark-950' : isDone ? 'bg-emerald-500 text-dark-950' : 'bg-dark-800 text-slate-500'
+              }`}>
+                {isDone ? '✓' : s.step}
+              </span>
+              <span>{s.label}</span>
+            </button>
           );
         })}
       </div>
 
-      {/* Side-by-Side Comparison Modal */}
-      {comparedCar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-3xl bg-dark-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-cyan-400" />
-                  Side-by-Side Automotive Benchmarking
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {activeVehicle.make} {activeVehicle.model} vs {comparedCar.make} {comparedCar.model}
-                </p>
-              </div>
-              <button
-                onClick={() => setComparedCar(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div className="p-4 rounded-xl bg-dark-850 border border-slate-800">
-                  <span className="text-[11px] text-slate-400 uppercase font-bold tracking-wider">
-                    Current Vehicle
-                  </span>
-                  <h4 className="text-sm sm:text-base font-bold text-white mt-1">
-                    {activeVehicle.make} {activeVehicle.model}
-                  </h4>
-                  <p className="text-xs text-slate-400">{activeVehicle.variant}</p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-800/40">
-                  <span className="text-[11px] text-cyan-400 uppercase font-bold tracking-wider">
-                    Target Upgrade ({comparedCar.upgradeScore}/100 Match)
-                  </span>
-                  <h4 className="text-sm sm:text-base font-bold text-white mt-1">
-                    {comparedCar.make} {comparedCar.model}
-                  </h4>
-                  <p className="text-xs text-slate-300">{comparedCar.variant}</p>
-                </div>
-              </div>
-
-              {/* Comparison Metric Rows */}
-              <div className="divide-y divide-slate-800 text-xs">
-                <div className="py-2.5 grid grid-cols-3 items-center">
-                  <span className="text-slate-400">Fuel & Powertrain</span>
-                  <span className="text-center font-medium text-white">{activeVehicle.fuelType.toUpperCase()}</span>
-                  <span className="text-center font-bold text-cyan-400">{comparedCar.fuelType.toUpperCase()}</span>
-                </div>
-
-                <div className="py-2.5 grid grid-cols-3 items-center">
-                  <span className="text-slate-400">Real Efficiency</span>
-                  <span className="text-center font-medium text-white">{activeVehicle.avgEfficiency}</span>
-                  <span className="text-center font-bold text-emerald-400">{comparedCar.araiEfficiency}</span>
-                </div>
-
-                <div className="py-2.5 grid grid-cols-3 items-center">
-                  <span className="text-slate-400">Power Output</span>
-                  <span className="text-center font-medium text-white">{activeVehicle.powerBhp} BHP</span>
-                  <span className="text-center font-bold text-white">{comparedCar.powerBhp} BHP</span>
-                </div>
-
-                <div className="py-2.5 grid grid-cols-3 items-center">
-                  <span className="text-slate-400">Torque</span>
-                  <span className="text-center font-medium text-white">{activeVehicle.torqueNm} Nm</span>
-                  <span className="text-center font-bold text-white">{comparedCar.torqueNm} Nm</span>
-                </div>
-
-                <div className="py-2.5 grid grid-cols-3 items-center">
-                  <span className="text-slate-400">Safety Rating</span>
-                  <span className="text-center font-medium text-white">5 Star Global NCAP</span>
-                  <span className="text-center font-bold text-emerald-400">{comparedCar.safetyRating}</span>
-                </div>
-
-                <div className="py-2.5 grid grid-cols-3 items-center bg-cyan-950/20 rounded-lg p-2">
-                  <span className="text-cyan-300 font-bold">5-Year Projected Savings</span>
-                  <span className="text-center text-slate-500 font-mono">-</span>
-                  <span className="text-center font-bold text-emerald-400 font-mono text-sm">
-                    +{formatINR(calculateDynamicAnnualSavings(comparedCar) * 5)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Pros & Cons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-3.5 rounded-xl bg-dark-850 border border-slate-800">
-                  <span className="text-xs font-bold text-emerald-400 block mb-2">Key Advantages</span>
-                  <ul className="space-y-1.5 text-xs text-slate-300">
-                    {comparedCar.pros.map((p, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>{p}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-dark-850 border border-slate-800">
-                  <span className="text-xs font-bold text-amber-400 block mb-2">Things to Consider</span>
-                  <ul className="space-y-1.5 text-xs text-slate-300">
-                    {comparedCar.cons.map((c, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <X className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                        <span>{c}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end px-6 py-3.5 border-t border-slate-800 bg-dark-950/60">
-              <Button onClick={() => setComparedCar(null)} variant="primary">
-                Close Benchmark
-              </Button>
-            </div>
-          </div>
-        </div>
+      {/* STEP 1: Current Vehicle Analysis */}
+      {currentStep === 1 && (
+        <CurrentVehicleStep
+          initialData={currentVehicleData}
+          onNext={handleCurrentVehicleSubmit}
+        />
       )}
+
+      {/* STEP 2: Replacement Requirements */}
+      {currentStep === 2 && (
+        <ReplacementCriteriaStep
+          initialCriteria={replacementCriteria}
+          currentCarResaleValue={currentVehicleData.currentEstimatedResaleValue}
+          onBack={() => setCurrentStep(1)}
+          onNext={handleReplacementCriteriaSubmit}
+        />
+      )}
+
+      {/* STEP 3: Ranked Recommendations */}
+      {currentStep === 3 && (
+        <RankedCarsStep
+          rankedCars={rankedCars}
+          currentCarTCO={currentCarTCO}
+          selectedCarIds={selectedCarIds}
+          onToggleCarSelection={handleToggleCarSelection}
+          onBack={() => setCurrentStep(2)}
+          onProceedToCompare={() => setCurrentStep(4)}
+        />
+      )}
+
+      {/* STEP 4: Comparison Matrix Dashboard */}
+      {currentStep === 4 && (
+        <ComparisonDashboard
+          currentVehicle={currentVehicleData}
+          currentCarTCO={currentCarTCO}
+          comparedCars={comparedCarsList.length > 0 ? comparedCarsList : rankedCars.slice(0, 2)}
+          onBack={() => setCurrentStep(3)}
+          onProceedToVerdict={() => setCurrentStep(5)}
+        />
+      )}
+
+      {/* STEP 5: Final Verdict Report */}
+      {currentStep === 5 && finalVerdict && (
+        <FinalVerdictCard
+          verdict={finalVerdict}
+          currentVehicle={currentVehicleData}
+          currentCarTCO={currentCarTCO}
+          comparedCars={comparedCarsList.length > 0 ? comparedCarsList : rankedCars.slice(0, 2)}
+          isSaving={isSaving}
+          isSaved={isSaved}
+          onSaveAnalysis={handleSaveAnalysis}
+          onRestart={handleRestart}
+          onBackToCompare={() => setCurrentStep(4)}
+        />
+      )}
+
+      {/* Saved Analyses Drawer Modal */}
+      <SavedAnalysesDrawer
+        isOpen={isSavedDrawerOpen}
+        onClose={() => setIsSavedDrawerOpen(false)}
+        analyses={savedAnalyses}
+        onLoadAnalysis={handleLoadSavedAnalysis}
+        onDeleteAnalysis={handleDeleteAnalysis}
+      />
     </div>
   );
 };

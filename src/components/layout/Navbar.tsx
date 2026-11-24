@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Menu, 
   Bell, 
@@ -9,12 +10,13 @@ import {
   TrendingUp, 
   CheckCheck,
   ChevronDown,
-  Car
+  Car,
+  LogOut
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { NumberPlate } from '../common/NumberPlate';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
   sidebarCollapsed: boolean;
@@ -37,11 +39,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     openLogExpense,
     openBookService,
     openValuation,
-    userProfile
+    openAddVehicle,
+    userProfile,
+    showToast
   } = useApp();
+
+  const { user, profile, signOut, isGuest } = useAuth();
+  const navigate = useNavigate();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [vehicleMenuOpen, setVehicleMenuOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    await signOut();
+    showToast('Signed out of AutoSphere', 'info');
+    navigate('/login', { replace: true });
+  };
 
   return (
     <header
@@ -67,57 +80,68 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Global Vehicle Selector Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setVehicleMenuOpen(!vehicleMenuOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dark-900 border border-slate-800 hover:border-slate-700 transition-colors"
-          >
-            <Car className="w-4 h-4 text-cyan-400" />
-            <div className="text-left hidden sm:block">
-              <span className="text-xs font-bold text-white leading-tight">
-                {activeVehicle.make} {activeVehicle.model}
-              </span>
-              <span className="text-[10px] text-slate-400 block font-mono">
-                {activeVehicle.regNumber}
-              </span>
-            </div>
-            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${vehicleMenuOpen ? 'rotate-180' : ''}`} />
-          </button>
+        {vehicles.length > 0 && activeVehicle ? (
+          <div className="relative">
+            <button
+              onClick={() => setVehicleMenuOpen(!vehicleMenuOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dark-900 border border-slate-800 hover:border-slate-700 transition-colors"
+            >
+              <Car className="w-4 h-4 text-cyan-400" />
+              <div className="text-left hidden sm:block">
+                <span className="text-xs font-bold text-white leading-tight">
+                  {activeVehicle.make} {activeVehicle.model}
+                </span>
+                <span className="text-[10px] text-slate-400 block font-mono">
+                  {activeVehicle.regNumber}
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${vehicleMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {vehicleMenuOpen && (
-            <div className="absolute left-0 top-full mt-2 w-64 bg-dark-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider">
-                Select Active Vehicle
+            {vehicleMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 w-64 bg-dark-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider">
+                  Select Active Vehicle
+                </div>
+                <div className="space-y-1">
+                  {vehicles.map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => {
+                        setActiveVehicleId(v.id);
+                        setVehicleMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition-colors ${
+                        v.id === activeVehicle.id
+                          ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300'
+                          : 'hover:bg-dark-800 text-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs font-semibold text-white">{v.make} {v.model}</p>
+                        <NumberPlate registrationNumber={v.regNumber} size="sm" isEV={v.fuelType === 'electric'} />
+                      </div>
+                      {v.id === activeVehicle.id && (
+                        <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-medium">
+                          Active
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1">
-                {vehicles.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => {
-                      setActiveVehicleId(v.id);
-                      setVehicleMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition-colors ${
-                      v.id === activeVehicle.id
-                        ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300'
-                        : 'hover:bg-dark-800 text-slate-300'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs font-semibold text-white">{v.make} {v.model}</p>
-                      <NumberPlate registrationNumber={v.regNumber} size="sm" isEV={v.fuelType === 'electric'} />
-                    </div>
-                    {v.id === activeVehicle.id && (
-                      <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-medium">
-                        Active
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <Button
+            onClick={openAddVehicle}
+            variant="outline"
+            size="sm"
+            icon={<Car className="w-3.5 h-3.5 text-cyan-400" />}
+          >
+            Add Car
+          </Button>
+        )}
       </div>
 
       {/* Right: Actions, Notifications & Profile */}
@@ -238,12 +262,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           title="Account Settings"
         >
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white">
-            {userProfile.name.charAt(0)}
+            {(profile?.full_name || user?.user_metadata?.full_name || userProfile.name).charAt(0)}
           </div>
           <span className="text-xs font-medium text-slate-200 hidden md:inline pr-1">
-            {userProfile.name.split(' ')[0]}
+            {(profile?.full_name || user?.user_metadata?.full_name || userProfile.name).split(' ')[0]}
           </span>
         </Link>
+
+        {/* Sign Out Button */}
+        <button
+          onClick={handleSignOut}
+          className="p-2 rounded-xl bg-dark-900 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+          title="Sign Out of AutoSphere"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </header>
   );

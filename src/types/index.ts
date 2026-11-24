@@ -8,6 +8,8 @@ export interface Vehicle {
   model: string;
   variant: string;
   year: number;
+  manufacturingYear?: number;
+  registrationYear?: number;
   regNumber: string;
   vin: string;
   fuelType: FuelType;
@@ -18,6 +20,8 @@ export interface Vehicle {
   powerBhp: number;
   torqueNm: number;
   odoKm: number;
+  purchasePriceINR?: number;
+  purchaseDate?: string;
   currentFuelPercent: number; // or SoC % for EV
   batteryHealthPercent?: number; // for EV
   estimatedRangeKm: number;

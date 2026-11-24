@@ -14,13 +14,13 @@ export const LogExpenseModal: React.FC = () => {
     showToast 
   } = useApp();
 
-  const [vehicleId, setVehicleId] = useState(activeVehicle.id);
+  const [vehicleId, setVehicleId] = useState(activeVehicle?.id || '');
   const [category, setCategory] = useState<ExpenseCategory>(
-    activeVehicle.fuelType === 'electric' ? 'charging' : 'fuel'
+    activeVehicle?.fuelType === 'electric' ? 'charging' : 'fuel'
   );
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [odoKm, setOdoKm] = useState(activeVehicle.odoKm.toString());
+  const [odoKm, setOdoKm] = useState(activeVehicle?.odoKm ? activeVehicle.odoKm.toString() : '10000');
   const [vendor, setVendor] = useState('');
   const [units, setUnits] = useState('');
   const [notes, setNotes] = useState('');
@@ -47,12 +47,19 @@ export const LogExpenseModal: React.FC = () => {
       return;
     }
 
+    const targetVehicleId = vehicleId || activeVehicle?.id || vehicles[0]?.id;
+    if (!targetVehicleId) {
+      showToast('Please register a vehicle in your garage first.', 'warning');
+      closeLogExpense();
+      return;
+    }
+
     addExpense({
-      vehicleId,
+      vehicleId: targetVehicleId,
       category,
       amountINR: parsedAmount,
       date,
-      odoKm: parseInt(odoKm, 10) || activeVehicle.odoKm,
+      odoKm: parseInt(odoKm, 10) || activeVehicle?.odoKm || 0,
       vendor: vendor.trim() || 'Direct Vendor',
       notes: notes.trim(),
       paymentMethod,

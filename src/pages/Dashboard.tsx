@@ -17,7 +17,15 @@ import {
   AlertTriangle,
   ChevronRight,
   IndianRupee,
-  CarFront
+  CarFront,
+  Bell,
+  Award,
+  FileText,
+  CheckCircle2,
+  Clock,
+  Check,
+  ShoppingBag,
+  Tag
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -27,10 +35,13 @@ import { NumberPlate } from '../components/common/NumberPlate';
 import { formatINR, formatKm, formatDate } from '../utils/formatters';
 import { Link } from 'react-router-dom';
 import { replacementCars } from '../data/mockData';
+import { healthPassportService } from '../services/healthPassportService';
+import { VehicleReminder } from '../types/passport.types';
 
 export const Dashboard: React.FC = () => {
   const { 
     activeVehicle, 
+    vehicles,
     activeVehicleExpenses, 
     diagnostics, 
     runDiagnosticScan, 
@@ -38,8 +49,45 @@ export const Dashboard: React.FC = () => {
     openLogExpense, 
     openBookService, 
     openValuation,
+    openAddVehicle,
     userProfile 
   } = useApp();
+
+  // If user has no vehicles yet, show guided onboarding state
+  if (!activeVehicle || vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Welcome to AutoSphere
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              India-wide connected automotive intelligence platform
+            </p>
+          </div>
+          <Button onClick={openAddVehicle} variant="primary" icon={<PlusCircle className="w-4 h-4" />}>
+            Add Vehicle
+          </Button>
+        </div>
+
+        <Card>
+          <div className="py-16 text-center max-w-md mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mx-auto flex items-center justify-center shadow-glow-subtle">
+              <CarFront className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-white">Your Garage is Empty</h3>
+            <p className="text-sm text-slate-400">
+              Register your vehicle to unlock real-time fuel & battery telemetry, predictive maintenance alerts, and lifecycle cost tracking.
+            </p>
+            <Button onClick={openAddVehicle} variant="primary" icon={<PlusCircle className="w-4 h-4" />}>
+              Register Your First Vehicle
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   // Monthly expenditure calculation
   const currentMonth = '2026-11';
@@ -54,6 +102,22 @@ export const Dashboard: React.FC = () => {
   // Health and alerts
   const activeAlerts = diagnostics.filter((d) => !d.isResolved && d.severity !== 'info');
   const isEV = activeVehicle.fuelType === 'electric';
+
+  // Smart Compliance & Service Reminders
+  const [reminders, setReminders] = React.useState<VehicleReminder[]>([]);
+
+  React.useEffect(() => {
+    if (activeVehicle?.id) {
+      healthPassportService.getReminders(activeVehicle.id).then(setReminders);
+    }
+  }, [activeVehicle?.id]);
+
+  const handleCompleteReminder = async (remId: string) => {
+    if (!activeVehicle?.id) return;
+    await healthPassportService.markReminderComplete(activeVehicle.id, remId);
+    const updated = await healthPassportService.getReminders(activeVehicle.id);
+    setReminders(updated);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -91,6 +155,24 @@ export const Dashboard: React.FC = () => {
           >
             Book Service
           </Button>
+          <Link to="/passport">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Award className="w-4 h-4 text-cyan-400" />}
+            >
+              Passport
+            </Button>
+          </Link>
+          <Link to="/documents">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<FileText className="w-4 h-4 text-purple-400" />}
+            >
+              Vault
+            </Button>
+          </Link>
           <Button
             onClick={openValuation}
             variant="outline"
@@ -435,6 +517,76 @@ export const Dashboard: React.FC = () => {
               ))}
             </div>
           </Card>
+
+          {/* Smart Compliance & Service Reminders Card */}
+          <Card
+            header={
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-cyan-400" />
+                  <span>Compliance & Service Reminders</span>
+                </div>
+                {reminders.filter(r => !r.isCompleted).length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                    {reminders.filter(r => !r.isCompleted).length} Due
+                  </span>
+                )}
+              </div>
+            }
+            actions={
+              <Link
+                to="/reminders"
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+              >
+                All Reminders <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            }
+          >
+            <div className="space-y-2.5">
+              {reminders.filter(r => !r.isCompleted).slice(0, 3).map((rem) => {
+                const isOverdue = new Date(rem.dueDate) < new Date();
+                return (
+                  <div
+                    key={rem.id}
+                    className={`p-2.5 rounded-xl border transition-all ${
+                      isOverdue
+                        ? 'bg-rose-950/20 border-rose-800/40 text-rose-200'
+                        : rem.priority === 'high'
+                        ? 'bg-amber-950/15 border-amber-800/30 text-amber-200'
+                        : 'bg-dark-850 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-white truncate">{rem.title}</span>
+                          {isOverdue ? (
+                            <Badge variant="danger" size="xs">Overdue</Badge>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Due {rem.dueDate}</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{rem.description}</p>
+                      </div>
+                      <button
+                        onClick={() => handleCompleteReminder(rem.id)}
+                        title="Mark Complete"
+                        className="p-1 rounded-lg bg-dark-800 hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/40 transition-colors shrink-0"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {reminders.filter(r => !r.isCompleted).length === 0 && (
+                <div className="py-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  All compliance & service items are up to date!
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
 
@@ -498,6 +650,97 @@ export const Dashboard: React.FC = () => {
           ))}
         </div>
       </Card>
+
+      {/* Buy & Sell Intelligence & Compatible Accessories (Phase 7 Integration) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Buy & Sell Intelligence Card */}
+        <Card
+          header={
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-cyan-400" />
+              <span>Buy & Sell Intelligence Spotlight</span>
+            </div>
+          }
+          actions={
+            <Link
+              to="/buy-sell"
+              className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+            >
+              Explore Buy Smart <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          }
+        >
+          <div className="space-y-3">
+            <div className="p-3.5 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
+                  Algorithmic Valuation Engine
+                </span>
+                <h4 className="text-xs font-bold text-white">
+                  Sell your {activeVehicle.make} {activeVehicle.model} with TruePrice™
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Instant transparent price quote based on regional RTO data in {activeVehicle.city}.
+                </p>
+              </div>
+              <Link to="/buy-sell">
+                <Button variant="primary" size="sm" icon={<Tag className="w-3.5 h-3.5" />}>
+                  List Car
+                </Button>
+              </Link>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between text-xs text-slate-400">
+              <span>Verified pre-owned cars in {activeVehicle.city}:</span>
+              <Link to="/buy-sell" className="text-cyan-400 hover:underline font-semibold">
+                Browse Pre-Owned Deals →
+              </Link>
+            </div>
+          </div>
+        </Card>
+
+        {/* Tailored Accessories Card */}
+        <Card
+          header={
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-cyan-400" />
+              <span>Accessories Matched to Your Garage</span>
+            </div>
+          }
+          actions={
+            <Link
+              to="/accessories"
+              className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+            >
+              All Accessories <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          }
+        >
+          <div className="space-y-3">
+            <div className="p-3 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-dark-800 border border-slate-700 flex items-center justify-center text-cyan-400 shrink-0 font-bold text-xs">
+                  7D
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">7D Carbon All-Weather Mats</h4>
+                  <span className="text-[10px] text-emerald-400 font-semibold block">
+                    ✓ Verified fit for {activeVehicle.make} {activeVehicle.model}
+                  </span>
+                </div>
+              </div>
+              <span className="text-xs font-mono font-bold text-white">₹5,499</span>
+            </div>
+
+            <div className="pt-1 flex items-center justify-between text-xs text-slate-400">
+              <span>Looking for dashcams or EV wallboxes?</span>
+              <Link to="/accessories" className="text-cyan-400 hover:underline font-semibold">
+                View Curated Hub →
+              </Link>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

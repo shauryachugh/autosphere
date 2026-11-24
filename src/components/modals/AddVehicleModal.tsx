@@ -4,6 +4,7 @@ import { X, Car, Plus, ShieldCheck, Check } from 'lucide-react';
 import { Button } from '../common/Button';
 import { NumberPlate } from '../common/NumberPlate';
 import { FuelType, TransmissionType, BodyType } from '../../types';
+import { SearchableLocationSelect } from '../common/SearchableLocationSelect';
 
 export const AddVehicleModal: React.FC = () => {
   const { isAddVehicleOpen, closeAddVehicle, addVehicle } = useApp();
@@ -18,6 +19,9 @@ export const AddVehicleModal: React.FC = () => {
   const [transmission, setTransmission] = useState<TransmissionType>('automatic');
   const [bodyType, setBodyType] = useState<BodyType>('suv');
   const [odoKm, setOdoKm] = useState('18500');
+  const [purchasePrice, setPurchasePrice] = useState('2450000');
+  const [purchaseDate, setPurchaseDate] = useState('2023-04-15');
+  const [regYear, setRegYear] = useState('2023');
   const [city, setCity] = useState('Bengaluru');
   const [state, setState] = useState('Karnataka');
 
@@ -32,6 +36,10 @@ export const AddVehicleModal: React.FC = () => {
       model,
       variant,
       year: parseInt(year, 10) || 2023,
+      manufacturingYear: parseInt(year, 10) || 2023,
+      registrationYear: parseInt(regYear, 10) || parseInt(year, 10) || 2023,
+      purchasePriceINR: parseFloat(purchasePrice) || 2450000,
+      purchaseDate,
       regNumber: regNumber.toUpperCase().trim(),
       vin: vin.toUpperCase().trim(),
       fuelType,
@@ -204,7 +212,7 @@ export const AddVehicleModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Year & Current Odometer */}
+          {/* Year & Registration Year */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -222,42 +230,77 @@ export const AddVehicleModal: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Current Odometer (km)
+                Registration Year
               </label>
               <input
                 type="number"
-                value={odoKm}
-                onChange={(e) => setOdoKm(e.target.value)}
+                min="2010"
+                max="2027"
+                value={regYear}
+                onChange={(e) => setRegYear(e.target.value)}
                 className="w-full bg-dark-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
               />
             </div>
           </div>
 
-          {/* City / State */}
+          {/* Purchase Price & Purchase Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Registered City
+                Purchase Price (₹ INR)
               </label>
-              <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full bg-dark-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-              />
+              <div className="relative">
+                <span className="absolute left-3.5 top-2.5 text-slate-400 text-xs font-semibold">₹</span>
+                <input
+                  type="number"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  placeholder="2450000"
+                  className="w-full bg-dark-800 border border-slate-700 rounded-xl pl-8 pr-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                State
+                Purchase Date
               </label>
               <input
-                type="text"
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                className="w-full bg-dark-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                type="date"
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                className="w-full bg-dark-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
               />
             </div>
+          </div>
+
+          {/* Current Odometer */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              Current Odometer (km)
+            </label>
+            <input
+              type="number"
+              value={odoKm}
+              onChange={(e) => setOdoKm(e.target.value)}
+              className="w-full bg-dark-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+            />
+          </div>
+
+          {/* Registered Location */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              RTO Registration Jurisdiction (State & City)
+            </label>
+            <SearchableLocationSelect
+              selectedState={state}
+              selectedCity={city}
+              onLocationChange={(s, c) => {
+                setState(s.name);
+                setCity(c.name);
+              }}
+              showFuelSnippet={false}
+            />
           </div>
 
           {/* Footer Actions */}

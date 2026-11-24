@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   Settings, 
   User, 
@@ -12,7 +14,9 @@ import {
   Smartphone, 
   MapPin, 
   Zap, 
-  IndianRupee 
+  IndianRupee,
+  LogOut,
+  KeyRound
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -21,12 +25,14 @@ import { formatINR } from '../utils/formatters';
 
 export const ProfileSettings: React.FC = () => {
   const { userProfile, updateUserProfile, activeVehicle, updateVehicle, showToast } = useApp();
+  const { user, profile, signOut, isGuest, isSupabaseConnected } = useAuth();
+  const navigate = useNavigate();
 
-  const [name, setName] = useState(userProfile.name);
-  const [email, setEmail] = useState(userProfile.email);
-  const [phone, setPhone] = useState(userProfile.phone);
-  const [city, setCity] = useState(userProfile.city);
-  const [state, setState] = useState(userProfile.state);
+  const [name, setName] = useState(profile?.full_name || user?.user_metadata?.full_name || userProfile.name);
+  const [email, setEmail] = useState(user?.email || userProfile.email);
+  const [phone, setPhone] = useState(profile?.phone || user?.user_metadata?.phone || userProfile.phone);
+  const [city, setCity] = useState(profile?.city || userProfile.city);
+  const [state, setState] = useState(profile?.state || userProfile.state);
   const [alerts, setAlerts] = useState(userProfile.alerts);
   const [fastagRechargeAmount, setFastagRechargeAmount] = useState('1000');
   const [connectedSync, setConnectedSync] = useState(userProfile.connectedCarSyncEnabled);
@@ -42,6 +48,12 @@ export const ProfileSettings: React.FC = () => {
       alerts,
       connectedCarSyncEnabled: connectedSync,
     });
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    showToast('Signed out of AutoSphere', 'info');
+    navigate('/login', { replace: true });
   };
 
   const handleFastagRecharge = () => {
@@ -335,6 +347,49 @@ export const ProfileSettings: React.FC = () => {
                   </button>
                 </div>
               ))}
+            </div>
+          </Card>
+
+          {/* Authentication & Session Security Card */}
+          <Card
+            header={
+              <span className="flex items-center gap-2 text-sm font-bold text-white">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                Authentication & Security Session
+              </span>
+            }
+          >
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-dark-850 border border-slate-800 space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Account Type:</span>
+                  <Badge variant={isGuest ? 'warning' : 'success'} size="xs">
+                    {isGuest ? 'Guest / Demo Mode' : 'Supabase Authenticated'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Row Level Security:</span>
+                  <span className="text-emerald-400 font-medium">✓ Active (Isolated User UID)</span>
+                </div>
+                {user?.id && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">User UID:</span>
+                    <span className="font-mono text-slate-300 text-[10px] truncate max-w-[180px]">
+                      {user.id}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                onClick={handleSignOut}
+                variant="danger"
+                size="md"
+                className="w-full"
+                icon={<LogOut className="w-4 h-4" />}
+              >
+                Sign Out from AutoSphere
+              </Button>
             </div>
           </Card>
         </div>
