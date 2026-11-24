@@ -173,13 +173,20 @@ ALTER TABLE public.saved_recommendations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
 
 -- POLICIES
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
 CREATE POLICY "Users can read own profile" ON public.profiles FOR SELECT TO authenticated USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can select own vehicles" ON public.vehicles;
 CREATE POLICY "Users can select own vehicles" ON public.vehicles FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own vehicles" ON public.vehicles;
 CREATE POLICY "Users can insert own vehicles" ON public.vehicles FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own vehicles" ON public.vehicles;
 CREATE POLICY "Users can update own vehicles" ON public.vehicles FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own vehicles" ON public.vehicles;
 CREATE POLICY "Users can delete own vehicles" ON public.vehicles FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can select own expenses" ON public.vehicle_expenses FOR SELECT TO authenticated USING (auth.uid() = user_id);

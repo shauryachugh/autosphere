@@ -30,6 +30,11 @@ export const MaintenanceTimeline: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
+    if (!activeVehicle?.id) {
+      setIsLoading(false);
+      setTimelineEvents([]);
+      return;
+    }
     setIsLoading(true);
     healthPassportService.getTimelineEvents(activeVehicle.id, selectedCategory).then(events => {
       if (mounted) {
@@ -40,7 +45,34 @@ export const MaintenanceTimeline: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [activeVehicle.id, selectedCategory]);
+  }, [activeVehicle?.id, selectedCategory]);
+
+  if (!activeVehicle || vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-carbon-800">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Maintenance Timeline & Vehicle History
+            </h1>
+            <p className="text-xs sm:text-sm text-carbon-400 mt-1">
+              Chronological audit ledger of periodic services, component replacements, insurance renewals and statutory compliance tests.
+            </p>
+          </div>
+        </div>
+
+        <Card className="p-12 text-center border-dashed border-carbon-800 bg-carbon-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <Clock className="w-12 h-12 text-carbon-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No vehicles added yet</h3>
+            <p className="text-sm text-carbon-400">
+              No vehicles added yet. Add your first vehicle to get started.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const categories: { label: string; value: string; icon: any }[] = [
     { label: 'All Activities', value: 'all', icon: Layers },

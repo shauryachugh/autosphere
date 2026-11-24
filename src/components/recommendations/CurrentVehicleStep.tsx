@@ -20,7 +20,7 @@ import { Badge } from '../common/Badge';
 import { NumberPlate } from '../common/NumberPlate';
 import { formatINR, formatKm } from '../../utils/formatters';
 import { CurrentVehicleAnalysis } from '../../types/replacement.types';
-import { FuelType, TransmissionType, BodyType } from '../../types';
+import { FuelType, TransmissionType, BodyType, Vehicle } from '../../types';
 import { calculateCurrentCarTCO } from '../../utils/tcoCalculator';
 
 interface CurrentVehicleStepProps {
@@ -37,7 +37,7 @@ export const CurrentVehicleStep: React.FC<CurrentVehicleStepProps> = ({
   const [formData, setFormData] = useState<CurrentVehicleAnalysis>(initialData);
 
   // Auto-fill from selected garage vehicle
-  const handleSelectGarageVehicle = (v: typeof activeVehicle) => {
+  const handleSelectGarageVehicle = (v: Vehicle) => {
     // Derive monthly fuel from activeVehicleExpenses
     const fuelExpenses = activeVehicleExpenses.filter(
       (e) => e.vehicleId === v.id && (e.category === 'fuel' || e.category === 'charging')

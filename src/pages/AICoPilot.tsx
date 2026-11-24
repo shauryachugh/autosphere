@@ -196,7 +196,7 @@ export const AICoPilot: React.FC = () => {
               <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mx-auto shadow-glow-subtle">
                 <Sparkles className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-bold text-white">Ask AutoSphere AI Anything</h3>
+              <h3 className="text-base font-bold text-white">Start a conversation with AutoSphere AI</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Your connected co-pilot understands your active vehicle telemetry, periodic maintenance schedules, state-specific RTO taxes, and Indian car prices.
               </p>

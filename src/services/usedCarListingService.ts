@@ -234,14 +234,14 @@ class UsedCarListingService {
    * Retrieves used car listings with multi-factor filters
    */
   async getListings(filters?: ListingFilterCriteria): Promise<UsedCarListing[]> {
-    let listings = [...SEED_USED_CAR_LISTINGS];
+    let listings: UsedCarListing[] = [];
 
     // Read stored user-created listings from localStorage
     try {
       const local = localStorage.getItem(this.getStorageKey('user_listings'));
       if (local) {
         const userListings: UsedCarListing[] = JSON.parse(local);
-        listings = [...userListings, ...listings];
+        listings = [...userListings];
       }
     } catch {}
 

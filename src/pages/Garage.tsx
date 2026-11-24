@@ -29,6 +29,9 @@ export const Garage: React.FC = () => {
     vehicles, 
     activeVehicleId, 
     setActiveVehicleId, 
+    isVehiclesLoading,
+    vehiclesError,
+    refreshVehicles,
     openAddVehicle, 
     deleteVehicle, 
     documents, 
@@ -37,6 +40,58 @@ export const Garage: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'vehicles' | 'documents' | 'services'>('vehicles');
+
+  if (isVehiclesLoading) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <div>
+            <div className="h-8 w-44 bg-dark-800 rounded-lg animate-pulse mb-2" />
+            <div className="h-4 w-72 bg-dark-850 rounded animate-pulse" />
+          </div>
+          <div className="h-9 w-36 bg-dark-800 rounded-lg animate-pulse" />
+        </div>
+        <Card>
+          <div className="py-20 text-center max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mx-auto flex items-center justify-center animate-spin">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-white">Loading Your Garage...</h3>
+            <p className="text-sm text-slate-400">
+              Retrieving verified telemetry, connected vehicle profiles and documents from database.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (vehiclesError && vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">My Garage</h1>
+        </div>
+        <Card>
+          <div className="py-16 text-center max-w-md mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 mx-auto flex items-center justify-center">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-white">Error Loading Vehicles</h3>
+            <p className="text-sm text-rose-300/80">{vehiclesError}</p>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button onClick={() => refreshVehicles()} variant="primary">
+                Retry Connection
+              </Button>
+              <Button onClick={openAddVehicle} variant="secondary">
+                Add Vehicle
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (vehicles.length === 0) {
     return (

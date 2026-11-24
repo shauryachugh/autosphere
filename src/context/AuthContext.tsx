@@ -28,42 +28,10 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (password: string) => Promise<{ error: Error | null }>;
-  loginAsDemo: () => void;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Demo profile fallback
-const demoUser: User = {
-  id: 'usr-demo-shaurya-01',
-  app_metadata: {},
-  user_metadata: {
-    full_name: 'Shaurya Sharma',
-    phone: '+91 98450 18293',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-  },
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-  email: 'shaurya.sharma@autosphere.in',
-  phone: '+91 98450 18293',
-  confirmed_at: new Date().toISOString(),
-  role: 'authenticated',
-  updated_at: new Date().toISOString(),
-};
-
-const demoProfile: Profile = {
-  id: 'usr-demo-shaurya-01',
-  full_name: 'Shaurya Sharma',
-  phone: '+91 98450 18293',
-  city: 'Bengaluru',
-  state: 'Karnataka',
-  avatar_url: '',
-  fastag_wallet_balance: 1450.00,
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-11-20T00:00:00Z',
-};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -121,21 +89,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
 
     async function initAuth() {
-      // Check if user previously logged in as guest/demo
-      const storedGuest = localStorage.getItem('autosphere_guest_mode');
-      if (storedGuest === 'true') {
-        setUser(demoUser);
-        setProfile(demoProfile);
-        setIsGuest(true);
-        setIsLoading(false);
-        return;
-      }
-
       if (!isSupabaseConfigured) {
-        // Default to demo user if Supabase is unconfigured so the app never blocks
-        setUser(demoUser);
-        setProfile(demoProfile);
-        setIsGuest(true);
+        // When running in local mode, default to logged out so user explicitly signs in or registers
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        setIsGuest(false);
         setIsLoading(false);
         return;
       }
@@ -206,27 +165,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       if (!isSupabaseConfigured) {
-        // Emulate registration when Supabase is in demo mode
+        // Create authenticated user record from submitted form values
+        const localUserId = `usr-${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
         const newUser: User = {
-          ...demoUser,
-          id: `usr-${Date.now().toString(36)}`,
+          id: localUserId,
+          app_metadata: {},
+          user_metadata: { full_name: fullName, phone: phone || '', city, state },
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
           email,
-          user_metadata: { full_name: fullName, phone, city, state },
+          role: 'authenticated',
+          updated_at: new Date().toISOString(),
         };
         setUser(newUser);
         setProfile({
-          id: newUser.id,
+          id: localUserId,
           full_name: fullName,
           phone: phone || '',
           city,
           state,
           avatar_url: '',
-          fastag_wallet_balance: 1500,
+          fastag_wallet_balance: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
         setIsGuest(false);
-        localStorage.setItem('autosphere_guest_mode', 'false');
         return { error: null };
       }
 
@@ -266,14 +229,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       if (!isSupabaseConfigured) {
-        // Emulate login
-        setUser({
-          ...demoUser,
+        // Authenticate with the user's submitted email credentials
+        const localUserId = `usr-${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        const userObj: User = {
+          id: localUserId,
+          app_metadata: {},
+          user_metadata: {
+            full_name: email.split('@')[0],
+            email,
+          },
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
           email,
+          role: 'authenticated',
+          updated_at: new Date().toISOString(),
+        };
+        setUser(userObj);
+        setProfile({
+          id: localUserId,
+          full_name: email.split('@')[0],
+          phone: '',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+          avatar_url: '',
+          fastag_wallet_balance: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
-        setProfile(demoProfile);
         setIsGuest(false);
-        localStorage.setItem('autosphere_guest_mode', 'false');
         return { error: null };
       }
 
@@ -349,14 +332,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 6. Login as Demo / Guest
-  const loginAsDemo = () => {
-    localStorage.setItem('autosphere_guest_mode', 'true');
-    setUser(demoUser);
-    setProfile(demoProfile);
-    setIsGuest(true);
-  };
-
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id, user.email, user.user_metadata);
@@ -378,7 +353,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         resetPassword,
         updatePassword,
-        loginAsDemo,
         refreshProfile,
       }}
     >

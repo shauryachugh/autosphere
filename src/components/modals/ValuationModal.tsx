@@ -7,11 +7,11 @@ import { formatINR, formatLakhsCrores } from '../../utils/formatters';
 export const ValuationModal: React.FC = () => {
   const { isValuationOpen, closeValuation, activeVehicle, showToast } = useApp();
 
-  const [make, setMake] = useState(activeVehicle.make);
-  const [model, setModel] = useState(activeVehicle.model);
-  const [year, setYear] = useState(activeVehicle.year.toString());
-  const [odoKm, setOdoKm] = useState(activeVehicle.odoKm.toString());
-  const [city, setCity] = useState(activeVehicle.city);
+  const [make, setMake] = useState(activeVehicle?.make || '');
+  const [model, setModel] = useState(activeVehicle?.model || '');
+  const [year, setYear] = useState(activeVehicle?.year ? activeVehicle.year.toString() : '2024');
+  const [odoKm, setOdoKm] = useState(activeVehicle?.odoKm ? activeVehicle.odoKm.toString() : '0');
+  const [city, setCity] = useState(activeVehicle?.city || '');
   const [condition, setCondition] = useState<'excellent' | 'good' | 'fair'>('excellent');
   const [owners, setOwners] = useState<number>(1);
 

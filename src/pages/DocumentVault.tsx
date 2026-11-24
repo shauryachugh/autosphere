@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import {
   FileText,
   Upload,
@@ -23,6 +24,7 @@ import { healthPassportService } from '../services/healthPassportService';
 import { DigitalDocument, DocumentCategory } from '../types/passport.types';
 
 export const DocumentVault: React.FC = () => {
+  const { user } = useAuth();
   const { activeVehicle, vehicles, setActiveVehicleId, showToast } = useApp();
   const [documents, setDocuments] = useState<DigitalDocument[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -40,6 +42,11 @@ export const DocumentVault: React.FC = () => {
   });
 
   const loadDocuments = async () => {
+    if (!activeVehicle?.id) {
+      setIsLoading(false);
+      setDocuments([]);
+      return;
+    }
     setIsLoading(true);
     const data = await healthPassportService.getDocuments(activeVehicle.id);
     setDocuments(data);
@@ -47,11 +54,16 @@ export const DocumentVault: React.FC = () => {
   };
 
   useEffect(() => {
-    loadDocuments();
-  }, [activeVehicle.id]);
+    if (activeVehicle?.id) {
+      loadDocuments();
+    } else {
+      setIsLoading(false);
+    }
+  }, [activeVehicle?.id]);
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeVehicle?.id) return;
     if (!newDoc.title) {
       showToast('Please enter a document title', 'error');
       return;
@@ -59,7 +71,7 @@ export const DocumentVault: React.FC = () => {
 
     const doc: DigitalDocument = {
       id: `doc-${Date.now()}`,
-      userId: 'user-demo',
+      userId: user?.id || 'authenticated-user',
       vehicleId: activeVehicle.id,
       title: newDoc.title,
       category: (newDoc.category as DocumentCategory) || 'other',
@@ -82,6 +94,7 @@ export const DocumentVault: React.FC = () => {
   };
 
   const handleDeleteDoc = async (id: string, title: string) => {
+    if (!activeVehicle?.id) return;
     await healthPassportService.deleteDocument(activeVehicle.id, id);
     showToast(`Removed ${title}`, 'info');
     loadDocuments();
@@ -90,6 +103,33 @@ export const DocumentVault: React.FC = () => {
   const handleDownload = (doc: DigitalDocument) => {
     showToast(`Generating authenticated temporary signed URL for ${doc.title}...`, 'info');
   };
+
+  if (!activeVehicle || vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-carbon-800">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Digital Vehicle Document Vault
+            </h1>
+            <p className="text-xs sm:text-sm text-carbon-400 mt-1">
+              Secure AES-256 cloud encrypted vault for Parivahan RC, insurance policies, and PUC certificates.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-12 text-center border border-dashed border-carbon-800 rounded-3xl bg-carbon-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <FileText className="w-12 h-12 text-carbon-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No vehicles added yet</h3>
+            <p className="text-sm text-carbon-400">
+              No vehicles added yet. Add your first vehicle to get started.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const categories: { label: string; value: string }[] = [
     { label: 'All Documents', value: 'all' },

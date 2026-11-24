@@ -64,7 +64,7 @@ export const VehicleHealth: React.FC = () => {
     subsystem: 'engine' as HealthSubsystem,
     itemName: 'Engine Oil & Oil Filter Replacement',
     serviceDate: new Date().toISOString().split('T')[0],
-    odometerKm: activeVehicle.odoKm,
+    odometerKm: activeVehicle?.odoKm || 0,
     expenseINR: 4500,
     serviceProvider: 'Authorized OEM Service Center',
     technicianNotes: 'Replaced fully synthetic oil & filter. Inspected washer.',
@@ -79,6 +79,10 @@ export const VehicleHealth: React.FC = () => {
   });
 
   const loadHealthData = async () => {
+    if (!activeVehicle?.id) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     const [schedData, summData] = await Promise.all([
       healthPassportService.getMaintenanceSchedules(activeVehicle.id, activeVehicle.odoKm),
@@ -90,8 +94,12 @@ export const VehicleHealth: React.FC = () => {
   };
 
   useEffect(() => {
-    loadHealthData();
-  }, [activeVehicle.id, activeVehicle.odoKm]);
+    if (activeVehicle?.id) {
+      loadHealthData();
+    } else {
+      setIsLoading(false);
+    }
+  }, [activeVehicle?.id, activeVehicle?.odoKm]);
 
   const handleOpenLogModal = (item?: MaintenanceScheduleItem) => {
     if (item) {
@@ -99,7 +107,7 @@ export const VehicleHealth: React.FC = () => {
         subsystem: item.subsystem,
         itemName: item.itemName,
         serviceDate: new Date().toISOString().split('T')[0],
-        odometerKm: activeVehicle.odoKm,
+        odometerKm: activeVehicle?.odoKm || 0,
         expenseINR: item.actualExpenseINR || 3000,
         serviceProvider: item.serviceProvider || 'Authorized OEM Service Center',
         technicianNotes: item.technicianNotes || '',
@@ -121,6 +129,7 @@ export const VehicleHealth: React.FC = () => {
 
   const handleSaveServiceLog = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeVehicle?.id) return;
     try {
       await healthPassportService.logMaintenanceServiceEvent({
         vehicleId: activeVehicle.id,
@@ -144,7 +153,7 @@ export const VehicleHealth: React.FC = () => {
 
   const handleSaveCustomSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeItemForAction) return;
+    if (!activeItemForAction || !activeVehicle) return;
 
     try {
       const updated: MaintenanceScheduleItem = {
@@ -179,6 +188,38 @@ export const VehicleHealth: React.FC = () => {
       showToast('Failed to update schedule', 'error');
     }
   };
+
+  if (!activeVehicle || vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-carbon-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Vehicle Health Tracker & Subsystems
+              </h1>
+              <Badge variant="electric" size="sm">
+                Telemetry Synchronized
+              </Badge>
+            </div>
+            <p className="text-xs sm:text-sm text-carbon-400 mt-1">
+              Predictive component wear tracking, scheduled servicing intervals, and diagnostic compliance
+            </p>
+          </div>
+        </div>
+
+        <Card className="p-12 text-center border-dashed border-carbon-800 bg-carbon-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <Activity className="w-12 h-12 text-carbon-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No active vehicle alerts</h3>
+            <p className="text-sm text-carbon-400">
+              No vehicles added yet. Add your first vehicle to get started.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const isEV = activeVehicle.fuelType === 'electric';
   const unresolvedDiagnostics = diagnostics.filter(d => !d.isResolved);
@@ -272,7 +313,7 @@ export const VehicleHealth: React.FC = () => {
         {/* Score Card */}
         <div className="p-4 rounded-2xl bg-carbon-900 border border-carbon-800 text-center">
           <span className="text-[10px] uppercase font-bold tracking-wider text-carbon-400 block">Health Index</span>
-          <span className="text-2xl font-extrabold text-cyan-400 font-mono mt-0.5 block">{summary?.overallScore || 94}/100</span>
+          <span className="text-2xl font-extrabold text-cyan-400 font-mono mt-0.5 block">{summary?.overallScore ?? 100}/100</span>
           <span className="text-[10px] text-emerald-400 font-medium">Optimal</span>
         </div>
 
@@ -301,7 +342,7 @@ export const VehicleHealth: React.FC = () => {
         <div className="p-4 rounded-2xl bg-carbon-900 border border-carbon-800 text-center">
           <span className="text-[10px] uppercase font-bold tracking-wider text-carbon-400 block">Total Maint. Spend</span>
           <span className="text-lg font-extrabold text-white font-mono mt-1 block">
-            ₹{(summary?.totalMaintenanceSpendINR || 8450).toLocaleString('en-IN')}
+            ₹{(summary?.totalMaintenanceSpendINR ?? 0).toLocaleString('en-IN')}
           </span>
           <span className="text-[10px] text-cyan-400">Lifetime Ledger</span>
         </div>
@@ -310,7 +351,7 @@ export const VehicleHealth: React.FC = () => {
         <div className="p-4 rounded-2xl bg-carbon-900 border border-carbon-800 text-center">
           <span className="text-[10px] uppercase font-bold tracking-wider text-carbon-400 block">Vault Compliance</span>
           <span className="text-2xl font-extrabold text-cyan-400 font-mono mt-0.5 block">
-            {summary?.documentCompletenessPercent || 100}%
+            {summary?.documentCompletenessPercent ?? 0}%
           </span>
           <span className="text-[10px] text-emerald-400">RC & Ins. Valid</span>
         </div>
@@ -456,22 +497,22 @@ export const VehicleHealth: React.FC = () => {
                 {/* 4 Tyres */}
                 <div className="absolute -left-6 top-6 p-2 rounded-xl bg-carbon-800 border border-carbon-700 text-center font-mono shadow-md">
                   <div className="text-[10px] text-carbon-400 font-sans">Front L</div>
-                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi.frontLeft} PSI</div>
+                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi?.frontLeft ?? 33} PSI</div>
                 </div>
 
                 <div className="absolute -right-6 top-6 p-2 rounded-xl bg-carbon-800 border border-carbon-700 text-center font-mono shadow-md">
                   <div className="text-[10px] text-carbon-400 font-sans">Front R</div>
-                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi.frontRight} PSI</div>
+                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi?.frontRight ?? 33} PSI</div>
                 </div>
 
                 <div className="absolute -left-6 bottom-6 p-2 rounded-xl bg-carbon-800 border border-carbon-700 text-center font-mono shadow-md">
                   <div className="text-[10px] text-carbon-400 font-sans">Rear L</div>
-                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi.rearLeft} PSI</div>
+                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi?.rearLeft ?? 33} PSI</div>
                 </div>
 
                 <div className="absolute -right-6 bottom-6 p-2 rounded-xl bg-carbon-800 border border-carbon-700 text-center font-mono shadow-md">
                   <div className="text-[10px] text-carbon-400 font-sans">Rear R</div>
-                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi.rearRight} PSI</div>
+                  <div className="text-sm font-bold text-cyan-400">{activeVehicle.tyrePressurePsi?.rearRight ?? 33} PSI</div>
                 </div>
               </div>
             </div>
@@ -494,41 +535,49 @@ export const VehicleHealth: React.FC = () => {
             }
           >
             <div className="space-y-3 p-2">
-              {diagnostics.map(issue => (
-                <div
-                  key={issue.id}
-                  className={`p-3.5 rounded-xl border flex items-start justify-between gap-3 text-xs ${
-                    issue.isResolved
-                      ? 'bg-carbon-900/40 border-carbon-800 opacity-60'
-                      : issue.severity === 'critical'
-                      ? 'bg-rose-950/20 border-rose-500/30'
-                      : 'bg-amber-950/20 border-amber-500/30'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-white px-2 py-0.5 rounded bg-carbon-800 text-[11px]">
-                        {issue.code}
-                      </span>
-                      <span className="font-bold text-white">{issue.title}</span>
-                    </div>
-                    <p className="text-carbon-300 mt-1">{issue.laymanExplanation}</p>
-                    <div className="text-[11px] text-carbon-400 mt-1">
-                      Action: {issue.suggestedAction}
-                    </div>
-                  </div>
-
-                  {!issue.isResolved && (
-                    <button
-                      type="button"
-                      onClick={() => resolveDiagnostic(issue.id)}
-                      className="px-2.5 py-1 rounded-lg bg-carbon-800 hover:bg-carbon-700 text-carbon-300 hover:text-white text-[11px] font-medium whitespace-nowrap transition-colors"
-                    >
-                      Clear DTC
-                    </button>
-                  )}
+              {diagnostics.length === 0 ? (
+                <div className="py-8 text-center text-xs text-carbon-400 space-y-1">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+                  <p className="font-semibold text-white">No active vehicle alerts.</p>
+                  <p className="text-carbon-400">All OBD-II powertrain and safety sensors reporting normal.</p>
                 </div>
-              ))}
+              ) : (
+                diagnostics.map(issue => (
+                  <div
+                    key={issue.id}
+                    className={`p-3.5 rounded-xl border flex items-start justify-between gap-3 text-xs ${
+                      issue.isResolved
+                        ? 'bg-carbon-900/40 border-carbon-800 opacity-60'
+                        : issue.severity === 'critical'
+                        ? 'bg-rose-950/20 border-rose-500/30'
+                        : 'bg-amber-950/20 border-amber-500/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-white px-2 py-0.5 rounded bg-carbon-800 text-[11px]">
+                          {issue.code}
+                        </span>
+                        <span className="font-bold text-white">{issue.title}</span>
+                      </div>
+                      <p className="text-carbon-300 mt-1">{issue.laymanExplanation}</p>
+                      <div className="text-[11px] text-carbon-400 mt-1">
+                        Action: {issue.suggestedAction}
+                      </div>
+                    </div>
+
+                    {!issue.isResolved && (
+                      <button
+                        type="button"
+                        onClick={() => resolveDiagnostic(issue.id)}
+                        className="px-2.5 py-1 rounded-lg bg-carbon-800 hover:bg-carbon-700 text-carbon-300 hover:text-white text-[11px] font-medium whitespace-nowrap transition-colors"
+                      >
+                        Clear DTC
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </div>

@@ -47,6 +47,138 @@ async function runPhase5Tests() {
 
   const testVehicleId = 'test-veh-xuv700';
 
+  // Seed test vehicle passport
+  await healthPassportService.updatePassport(testVehicleId, {
+    id: `passport-${testVehicleId}`,
+    userId: 'test-user-phase5',
+    make: 'Mahindra',
+    model: 'XUV700',
+    variant: 'AX7 L AWD',
+    manufacturingYear: 2023,
+    registrationYear: 2023,
+    fuelType: 'diesel',
+    transmission: 'automatic',
+    bodyType: 'suv',
+    regNumber: 'KA 01 MR 7812',
+    registrationState: 'Karnataka',
+    registrationCity: 'Bengaluru',
+    rtoCode: 'KA-01',
+    purchaseDate: '2023-04-15',
+    purchasePriceINR: 2450000,
+    currentOdometer: 18500,
+    chassisNumber: 'MA1TN8SK9P2E90123',
+    engineNumber: 'mHawk22L78912',
+    previousOwnersCount: 1,
+    color: 'Midnight Black',
+    photos: ['https://images.unsplash.com/photo-1549399542-7e3f8b79c341'],
+    insurancePolicyNumber: 'HDFC-ERGO-GEN-789123',
+    insuranceProvider: 'HDFC ERGO General Insurance',
+    insuranceExpiryDate: '2027-05-20',
+    pucCertificateNumber: 'PUC-KA-2024-91283',
+    pucExpiryDate: '2027-02-18',
+    healthScore: 92,
+    isPrimary: true,
+  });
+
+  // Seed test docs for test-veh-xuv700
+  await healthPassportService.saveDocument({
+    id: 'doc-rc',
+    vehicleId: testVehicleId,
+    category: 'rc',
+    title: 'Registration Certificate',
+    documentNumber: 'KA01-2023-00912',
+    storagePath: `vehicle-documents/${testVehicleId}/rc.pdf`,
+  });
+  await healthPassportService.saveDocument({
+    id: 'doc-ins',
+    vehicleId: testVehicleId,
+    category: 'insurance',
+    title: 'Comprehensive Insurance Policy',
+    documentNumber: 'HDFC-ERGO-9912',
+    storagePath: `vehicle-documents/${testVehicleId}/insurance.pdf`,
+  });
+  await healthPassportService.saveDocument({
+    id: 'doc-puc',
+    vehicleId: testVehicleId,
+    category: 'puc',
+    title: 'PUC Certificate',
+    documentNumber: 'PUC-KA-9912',
+    storagePath: `vehicle-documents/${testVehicleId}/puc.pdf`,
+  });
+
+  // Seed test timeline events
+  const timelineKey = `autosphere_timeline_${testVehicleId}`;
+  localStorage.setItem(timelineKey, JSON.stringify([
+    {
+      id: 'evt-1',
+      vehicleId: testVehicleId,
+      date: '2026-10-15',
+      title: 'Periodic 20,000 km Service',
+      category: 'service',
+      odometerKm: 18000,
+      costINR: 8500,
+      description: 'Engine oil and filter change',
+      provider: 'Sireesh Auto',
+    },
+    {
+      id: 'evt-2',
+      vehicleId: testVehicleId,
+      date: '2026-06-10',
+      title: 'PUC Emission Testing',
+      category: 'puc',
+      odometerKm: 14000,
+      costINR: 120,
+      description: 'Passed Bharat Stage VI test',
+      provider: 'HPCL Fuel Station',
+    },
+    {
+      id: 'evt-3',
+      vehicleId: testVehicleId,
+      date: '2026-04-10',
+      title: 'Insurance Renewal',
+      category: 'insurance',
+      odometerKm: 12000,
+      costINR: 32000,
+      description: 'Zero dep policy renewed',
+      provider: 'HDFC ERGO',
+    },
+  ]));
+
+  // Seed test reminders
+  const remindersKey = `autosphere_reminders_${testVehicleId}`;
+  localStorage.setItem(remindersKey, JSON.stringify([
+    {
+      id: 'rem-1',
+      vehicleId: testVehicleId,
+      title: 'Annual Service Due',
+      description: 'Engine oil change',
+      reminderType: 'service',
+      dueDate: '2027-04-15',
+      priority: 'high',
+      isCompleted: false,
+    },
+    {
+      id: 'rem-2',
+      vehicleId: testVehicleId,
+      title: 'PUC Renewal',
+      description: 'Emission test due',
+      reminderType: 'puc',
+      dueDate: '2027-02-15',
+      priority: 'medium',
+      isCompleted: false,
+    },
+    {
+      id: 'rem-3',
+      vehicleId: testVehicleId,
+      title: 'Insurance Renewal',
+      description: 'Comprehensive policy',
+      reminderType: 'insurance',
+      dueDate: '2027-05-20',
+      priority: 'high',
+      isCompleted: false,
+    },
+  ]));
+
   // ------------------------------------------------------------------------
   // MODULE 1: DIGITAL VEHICLE PASSPORT
   // ------------------------------------------------------------------------

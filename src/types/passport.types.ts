@@ -37,6 +37,10 @@ export interface VehiclePassportData {
   pucExpiryDate?: string;
   healthScore: number;
   connectedCarPlatform?: string;
+  lastServiceDate?: string;
+  lastServiceKm?: number;
+  nextServiceDueDate?: string;
+  nextServiceDueKm?: number;
   isPrimary: boolean;
   createdAt?: string;
   updatedAt?: string;

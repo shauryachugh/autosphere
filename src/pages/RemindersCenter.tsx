@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import {
   Bell,
   CheckCircle2,
@@ -23,6 +24,7 @@ import { healthPassportService } from '../services/healthPassportService';
 import { VehicleReminder, ReminderType, ReminderPriority } from '../types/passport.types';
 
 export const RemindersCenter: React.FC = () => {
+  const { user } = useAuth();
   const { activeVehicle, vehicles, showToast } = useApp();
   const [reminders, setReminders] = useState<VehicleReminder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +47,11 @@ export const RemindersCenter: React.FC = () => {
   });
 
   const loadReminders = async () => {
+    if (!activeVehicle?.id) {
+      setIsLoading(false);
+      setReminders([]);
+      return;
+    }
     setIsLoading(true);
     const data = await healthPassportService.getReminders(activeVehicle.id);
     setReminders(data);
@@ -52,11 +59,16 @@ export const RemindersCenter: React.FC = () => {
   };
 
   useEffect(() => {
-    loadReminders();
-  }, [activeVehicle.id]);
+    if (activeVehicle?.id) {
+      loadReminders();
+    } else {
+      setIsLoading(false);
+    }
+  }, [activeVehicle?.id]);
 
   const handleCreateReminder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeVehicle?.id) return;
     if (!newReminder.title || !newReminder.dueDate) {
       showToast('Please specify a reminder title and due date', 'error');
       return;
@@ -64,7 +76,7 @@ export const RemindersCenter: React.FC = () => {
 
     const created: VehicleReminder = {
       id: `rem-${Date.now()}`,
-      userId: 'user-demo',
+      userId: user?.id || 'authenticated-user',
       vehicleId: activeVehicle.id,
       title: newReminder.title,
       description: newReminder.description,
@@ -86,6 +98,33 @@ export const RemindersCenter: React.FC = () => {
     setNewReminder({ title: '', description: '', reminderType: 'service', dueDate: '', priority: 'medium' });
     loadReminders();
   };
+
+  if (!activeVehicle || vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-carbon-800">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Compliance & Service Reminders
+            </h1>
+            <p className="text-xs sm:text-sm text-carbon-400 mt-1">
+              Real-time statutory notifications for insurance expiry, PUC renewals, scheduled engine maintenance, and loan EMIs.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-12 text-center border border-dashed border-carbon-800 rounded-3xl bg-carbon-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <Bell className="w-12 h-12 text-carbon-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No active vehicle alerts</h3>
+            <p className="text-sm text-carbon-400">
+              No active vehicle alerts.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleMarkComplete = async (reminderId: string, title: string) => {
     await healthPassportService.markReminderComplete(activeVehicle.id, reminderId);

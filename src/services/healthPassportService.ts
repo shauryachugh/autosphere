@@ -157,44 +157,56 @@ class HealthPassportService {
       } catch {}
     }
 
-    // Default Seed Passport
-    return {
-      id: vehicleId,
-      userId: 'user-demo',
-      make: 'Mahindra',
-      model: 'Scorpio-N',
-      variant: 'Z8L 4x4 Diesel AT',
-      manufacturingYear: 2023,
-      registrationYear: 2023,
-      fuelType: 'diesel',
-      transmission: 'automatic',
-      bodyType: 'suv',
-      regNumber: 'KA 01 MR 7812',
-      registrationState: 'Karnataka',
-      registrationCity: 'Bengaluru',
-      rtoCode: 'KA-01 (Koramangala RTO)',
-      purchaseDate: '2023-04-15',
-      purchasePriceINR: 2450000,
-      currentOdometer: 18500,
-      chassisNumber: 'MA1TN8SK9P2E90123',
-      engineNumber: 'mHawk22D984102',
-      previousOwnersCount: 1,
-      color: 'Napoli Black',
-      photos: [
-        'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80',
-        'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=80',
-      ],
-      notes: 'Maintained exclusively at Chrome Motors Authorized Workshop. Ceramic coating applied June 2024.',
-      insurancePolicyNumber: 'HDFC-ERGO-MOT-2024-9182',
-      insuranceProvider: 'HDFC ERGO General Insurance',
-      insuranceExpiryDate: '2025-04-14',
-      pucCertificateNumber: 'PUC-KA01-2024-8910',
-      pucExpiryDate: '2025-03-20',
-      healthScore: 94,
-      connectedCarPlatform: 'AdrenoX',
-      isPrimary: true,
-      createdAt: new Date().toISOString(),
-    };
+    // Check if vehicle exists in user-scoped garage cache
+    if (typeof localStorage !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('autosphere_vehicles_')) {
+          try {
+            const list = JSON.parse(localStorage.getItem(key) || '[]');
+            const v = list.find((item: any) => item.id === vehicleId);
+            if (v) {
+              return {
+                id: v.id,
+                userId: v.user_id || 'user',
+                make: v.make,
+                model: v.model,
+                variant: v.variant,
+                manufacturingYear: v.manufacturingYear || v.year || 2023,
+                registrationYear: v.registrationYear || v.year || 2023,
+                fuelType: v.fuelType,
+                transmission: v.transmission,
+                bodyType: v.bodyType || 'suv',
+                regNumber: v.regNumber,
+                registrationState: v.state || '',
+                registrationCity: v.city || '',
+                rtoCode: v.regNumber ? v.regNumber.slice(0, 5) : '',
+                purchaseDate: v.purchaseDate,
+                purchasePriceINR: v.purchasePriceINR,
+                currentOdometer: v.odoKm || 0,
+                chassisNumber: v.vin,
+                engineNumber: '',
+                previousOwnersCount: 1,
+                color: 'Factory OEM Finish',
+                photos: v.image ? [v.image] : [],
+                notes: '',
+                insurancePolicyNumber: v.insurancePolicyNumber,
+                insuranceProvider: v.insuranceProvider,
+                insuranceExpiryDate: v.insuranceExpiryDate,
+                pucCertificateNumber: '',
+                pucExpiryDate: v.pucExpiryDate,
+                healthScore: v.healthScore || 95,
+                connectedCarPlatform: v.connectedCarPlatform,
+                isPrimary: Boolean(v.isPrimary),
+                createdAt: new Date().toISOString(),
+              };
+            }
+          } catch {}
+        }
+      }
+    }
+
+    return null as any;
   }
 
   async updatePassport(vehicleId: string, updates: Partial<VehiclePassportData>): Promise<VehiclePassportData> {
@@ -354,7 +366,7 @@ class HealthPassportService {
         recommendedNextKm: lastKm + tmpl.intervalKm,
         status: this.calculateHealthStatus(lastDate, lastKm, tmpl.intervalMonths, tmpl.intervalKm, currentOdo),
         actualExpenseINR: tmpl.subsystem === 'engine' ? 4500 : 1200,
-        serviceProvider: 'Chrome Motors Authorized Workshop',
+        serviceProvider: 'Authorized OEM Workshop',
         technicianNotes: tmpl.technicianNotes,
         isCustom: false,
       };
@@ -553,81 +565,14 @@ class HealthPassportService {
       } catch {}
     }
 
-    // Default Seed Documents
-    const seedDocs: DigitalDocument[] = [
-      {
-        id: `doc-${vehicleId}-rc`,
-        userId: 'user-demo',
-        vehicleId,
-        title: 'Registration Certificate (Smart Card RC)',
-        category: 'rc',
-        documentNumber: 'KA01MR7812',
-        issueDate: '2023-04-18',
-        expiryDate: '2038-04-17',
-        storagePath: `vehicle-documents/${vehicleId}/rc_smartcard.pdf`,
-        fileSizeBytes: 1840000,
-        mimeType: 'application/pdf',
-        status: 'valid',
-        notes: 'Parivahan verified digital RC',
-        createdAt: '2023-04-18T10:00:00Z',
-      },
-      {
-        id: `doc-${vehicleId}-ins`,
-        userId: 'user-demo',
-        vehicleId,
-        title: 'Comprehensive Insurance Policy (Zero Dep)',
-        category: 'insurance',
-        documentNumber: 'HDFC-ERGO-MOT-2024-9182',
-        issueDate: '2024-04-15',
-        expiryDate: '2025-04-14',
-        storagePath: `vehicle-documents/${vehicleId}/insurance_2024_2025.pdf`,
-        fileSizeBytes: 2450000,
-        mimeType: 'application/pdf',
-        status: 'valid',
-        notes: 'IDV ₹21,50,000 with Nil-Depreciation and Engine Protector',
-        createdAt: '2024-04-15T12:00:00Z',
-      },
-      {
-        id: `doc-${vehicleId}-puc`,
-        userId: 'user-demo',
-        vehicleId,
-        title: 'Pollution Under Control (PUC) Certificate',
-        category: 'puc',
-        documentNumber: 'PUC-KA01-2024-8910',
-        issueDate: '2024-09-21',
-        expiryDate: '2025-03-20',
-        storagePath: `vehicle-documents/${vehicleId}/puc_sep2024.pdf`,
-        fileSizeBytes: 980000,
-        mimeType: 'application/pdf',
-        status: 'valid',
-        notes: 'BS-VI Diesel Smoke Density: 0.28 / m (Pass)',
-        createdAt: '2024-09-21T15:30:00Z',
-      },
-      {
-        id: `doc-${vehicleId}-invoice`,
-        userId: 'user-demo',
-        vehicleId,
-        title: 'Vehicle Purchase Tax Invoice',
-        category: 'purchase_invoice',
-        documentNumber: 'INV-CHROME-2023-419',
-        issueDate: '2023-04-15',
-        storagePath: `vehicle-documents/${vehicleId}/purchase_invoice.pdf`,
-        fileSizeBytes: 3120000,
-        mimeType: 'application/pdf',
-        status: 'valid',
-        notes: 'Original GST tax invoice with dealer delivery receipt',
-        createdAt: '2023-04-15T09:00:00Z',
-      },
-    ];
-
-    localStorage.setItem(this.getStorageKey('documents', vehicleId), JSON.stringify(seedDocs));
-    return seedDocs;
+    // No documents uploaded yet
+    return [];
   }
 
   async saveDocument(doc: Partial<DigitalDocument> & { vehicleId: string; category: DocumentCategory; title: string }): Promise<DigitalDocument> {
     const fullDoc: DigitalDocument = {
       id: doc.id || `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      userId: doc.userId || 'user-demo',
+      userId: doc.userId || 'authenticated-user',
       vehicleId: doc.vehicleId,
       category: doc.category,
       title: doc.title,
@@ -706,69 +651,6 @@ class HealthPassportService {
       } catch {}
     }
 
-    if (events.length === 0) {
-      // Seed rich chronological timeline
-      events = [
-        {
-          id: 'ev-1',
-          vehicleId,
-          date: '2024-09-21',
-          odometerKm: 17200,
-          category: 'puc',
-          title: 'PUC Emission Test Passed',
-          description: '6-Month Emission Certificate issued at Koramangala Emission Testing Centre.',
-          amountINR: 150,
-          isComplianceRelated: true,
-        },
-        {
-          id: 'ev-2',
-          vehicleId,
-          date: '2024-04-15',
-          odometerKm: 13500,
-          category: 'insurance',
-          title: 'Insurance Renewal (Zero Dep Comprehensive)',
-          description: 'Policy HDFC-ERGO-MOT-2024-9182 renewed with Nil Depreciation & Engine Protector.',
-          amountINR: 52400,
-          serviceProvider: 'HDFC ERGO General Insurance',
-          isComplianceRelated: true,
-        },
-        {
-          id: 'ev-3',
-          vehicleId,
-          date: '2024-04-10',
-          odometerKm: 10000,
-          category: 'service',
-          title: '10,000 km Scheduled Second Periodic Service',
-          description: 'Engine oil (6L synthetic), oil filter, AC pollen filter, wheel rotation, brake pad inspection.',
-          amountINR: 8450,
-          serviceProvider: 'Chrome Motors Mahindra Authorized',
-        },
-        {
-          id: 'ev-4',
-          vehicleId,
-          date: '2023-10-12',
-          odometerKm: 5000,
-          category: 'part_replacement',
-          title: 'Cabin Air Purifier Filter Replacement',
-          description: 'Replaced activated carbon HEPA filter for clean cabin AQI.',
-          amountINR: 1850,
-          serviceProvider: 'Chrome Motors',
-        },
-        {
-          id: 'ev-5',
-          vehicleId,
-          date: '2023-05-18',
-          odometerKm: 1000,
-          category: 'service',
-          title: '1,000 km First Free Inspection Service',
-          description: 'Fluid levels top-up, underbody torque check, ECU diagnostic health scan.',
-          amountINR: 0,
-          serviceProvider: 'Chrome Motors Mahindra Authorized',
-        },
-      ];
-      localStorage.setItem(this.getStorageKey('timeline', vehicleId), JSON.stringify(events));
-    }
-
     if (filterCategory && filterCategory !== 'all') {
       return events.filter(e => e.category === filterCategory);
     }
@@ -815,65 +697,7 @@ class HealthPassportService {
       } catch {}
     }
 
-    const defaultReminders: VehicleReminder[] = [
-      {
-        id: 'rem-1',
-        userId: 'user-demo',
-        vehicleId: vehicleId || 'default-veh',
-        reminderType: 'puc',
-        title: 'PUC Emission Certificate Expiry Soon',
-        description: 'Your 6-month PUC expires on 20 March 2025. Visit any nearby RTO testing centre to avoid ₹10,000 challan.',
-        dueDate: '2025-03-20',
-        priority: 'high',
-        isCompleted: false,
-        isDismissed: false,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'rem-2',
-        userId: 'user-demo',
-        vehicleId: vehicleId || 'default-veh',
-        reminderType: 'service',
-        title: '20,000 km Major Periodic Service Due',
-        description: 'Engine oil, oil filter, brake fluid flush, and brake pad inspection scheduled for 20,000 km.',
-        dueDate: '2025-04-10',
-        dueKm: 20000,
-        priority: 'high',
-        isCompleted: false,
-        isDismissed: false,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'rem-3',
-        userId: 'user-demo',
-        vehicleId: vehicleId || 'default-veh',
-        reminderType: 'insurance',
-        title: 'Zero-Dep Insurance Policy Renewal',
-        description: 'HDFC ERGO Policy HDFC-ERGO-MOT-2024-9182 expires 14 April 2025. Renew early to retain 20% No-Claim Bonus (NCB).',
-        dueDate: '2025-04-14',
-        priority: 'medium',
-        isCompleted: false,
-        isDismissed: false,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'rem-4',
-        userId: 'user-demo',
-        vehicleId: vehicleId || 'default-veh',
-        reminderType: 'tyres',
-        title: 'Tyre Rotation & Wheel Balancing (7,500 km cycle)',
-        description: 'Rotate front and rear tyres to prevent uneven shoulder wear.',
-        dueDate: '2025-05-01',
-        dueKm: 22000,
-        priority: 'low',
-        isCompleted: false,
-        isDismissed: false,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    localStorage.setItem(key, JSON.stringify(defaultReminders));
-    return defaultReminders;
+    return [];
   }
 
   async markReminderComplete(vehicleId: string, reminderId: string): Promise<void> {
@@ -975,18 +799,18 @@ class HealthPassportService {
       overdueCount,
       infoMissingCount,
       totalMaintenanceSpendINR: totalMaintenanceSpend,
-      lastServiceInfo: {
-        date: '2024-04-10',
-        km: 10000,
-        provider: 'Chrome Motors Mahindra Authorized',
-        amountINR: 8450,
-      },
-      upcomingServiceInfo: {
-        dueDate: '2025-04-10',
-        dueKm: 20000,
-        daysRemaining: 135,
-        kmRemaining: 1500,
-      },
+      lastServiceInfo: passport.lastServiceDate ? {
+        date: passport.lastServiceDate,
+        km: passport.lastServiceKm || 0,
+        provider: 'Authorized OEM Service Center',
+        amountINR: 0,
+      } : undefined,
+      upcomingServiceInfo: passport.nextServiceDueDate ? {
+        dueDate: passport.nextServiceDueDate,
+        dueKm: passport.nextServiceDueKm || 0,
+        daysRemaining: Math.max(0, Math.round((new Date(passport.nextServiceDueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
+        kmRemaining: Math.max(0, (passport.nextServiceDueKm || 0) - currentOdo),
+      } : undefined,
       insuranceStatus: {
         policyNumber: passport.insurancePolicyNumber,
         provider: passport.insuranceProvider,

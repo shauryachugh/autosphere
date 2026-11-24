@@ -40,22 +40,27 @@ export const VehiclePassport: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
+    if (!activeVehicle?.id) {
+      setIsLoading(false);
+      setPassport(null);
+      return;
+    }
     setIsLoading(true);
     healthPassportService.getPassport(activeVehicle.id).then(data => {
       if (mounted) {
         setPassport(data);
-        setEditForm(data);
+        setEditForm(data || {});
         setIsLoading(false);
       }
     });
     return () => {
       mounted = false;
     };
-  }, [activeVehicle.id]);
+  }, [activeVehicle?.id]);
 
   const handleSavePassport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passport) return;
+    if (!passport || !activeVehicle?.id) return;
     try {
       const updated = await healthPassportService.updatePassport(activeVehicle.id, editForm);
       setPassport(updated);
@@ -70,6 +75,33 @@ export const VehiclePassport: React.FC = () => {
     navigator.clipboard.writeText(window.location.href);
     showToast('Secure Vehicle Passport Link copied to clipboard', 'info');
   };
+
+  if (!activeVehicle || vehicles.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-carbon-800">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Digital Vehicle Passport
+            </h1>
+            <p className="text-xs sm:text-sm text-carbon-400 mt-1">
+              Cryptographically verified, tamper-evident digital ownership identity for Indian vehicles.
+            </p>
+          </div>
+        </div>
+
+        <Card className="p-12 text-center border-dashed border-carbon-800 bg-carbon-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <Car className="w-12 h-12 text-carbon-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No vehicles added yet</h3>
+            <p className="text-sm text-carbon-400">
+              No vehicles added yet. Add your first vehicle to get started.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading || !passport) {
     return (

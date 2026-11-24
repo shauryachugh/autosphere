@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   CarFront, 
   TrendingUp, 
@@ -46,6 +47,7 @@ import { usedCarListingService } from '../services/usedCarListingService';
 import { usedCarPriceService } from '../services/usedCarPriceService';
 
 export const BuyAndSell: React.FC = () => {
+  const { user } = useAuth();
   const { activeVehicle, vehicles, userProfile, showToast } = useApp();
 
   // Primary Tab: 'buy' | 'sell'
@@ -120,7 +122,7 @@ export const BuyAndSell: React.FC = () => {
     const data = await usedCarListingService.getListings(filterCriteria);
     setListings(data);
 
-    const userId = userProfile?.email || 'user-demo';
+    const userId = user?.id || userProfile?.email || 'authenticated-user';
     const userCars = await usedCarListingService.getMyListings(userId);
     setMyListings(userCars);
 
@@ -157,7 +159,7 @@ export const BuyAndSell: React.FC = () => {
   // Submit Listing
   const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
-    const userId = userProfile?.email || 'user-demo';
+    const userId = user?.id || userProfile?.email || 'authenticated-user';
 
     const newCar = await usedCarListingService.createListing({
       userId,
@@ -531,17 +533,20 @@ export const BuyAndSell: React.FC = () => {
             <Card>
               <div className="py-12 text-center max-w-md mx-auto space-y-3">
                 <CarFront className="w-12 h-12 text-slate-600 mx-auto" />
-                <h3 className="text-base font-bold text-white">No listings match your filter criteria</h3>
+                <h3 className="text-base font-bold text-white">No listings available right now</h3>
                 <p className="text-xs text-slate-400">
-                  Try widening your budget range or selecting different fuel and city preferences.
+                  Be the first to list your verified vehicle or check back later for new pre-owned cars.
                 </p>
-                <Button
-                  onClick={() => setFilterCriteria({ maxPriceINR: 5000000 })}
-                  variant="outline"
-                  size="sm"
-                >
-                  Reset All Filters
-                </Button>
+                <div className="pt-2">
+                  <Button
+                    onClick={() => setActiveTab('sell')}
+                    variant="primary"
+                    size="sm"
+                    icon={<Plus className="w-4 h-4" />}
+                  >
+                    List Your Car
+                  </Button>
+                </div>
               </div>
             </Card>
           )}

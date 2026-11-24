@@ -57,13 +57,17 @@ export const ProfileSettings: React.FC = () => {
   };
 
   const handleFastagRecharge = () => {
+    if (!activeVehicle) {
+      showToast('No active vehicle selected for FASTag recharge.', 'error');
+      return;
+    }
     const recharge = parseInt(fastagRechargeAmount, 10);
     if (isNaN(recharge) || recharge <= 0) {
       showToast('Please enter a valid FASTag recharge amount.', 'error');
       return;
     }
     updateVehicle(activeVehicle.id, {
-      fastagBalanceINR: activeVehicle.fastagBalanceINR + recharge,
+      fastagBalanceINR: (activeVehicle.fastagBalanceINR || 0) + recharge,
     });
     showToast(`FASTag Wallet recharged with ₹${recharge.toLocaleString('en-IN')} via UPI.`, 'success');
   };
@@ -176,9 +180,9 @@ export const ProfileSettings: React.FC = () => {
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs text-slate-400 block">Linked FASTag ({activeVehicle.regNumber})</span>
+                  <span className="text-xs text-slate-400 block">Linked FASTag ({activeVehicle?.regNumber || 'No Active Vehicle'})</span>
                   <div className="text-2xl font-bold text-white font-mono mt-1">
-                    {formatINR(activeVehicle.fastagBalanceINR)}
+                    {formatINR(activeVehicle?.fastagBalanceINR ?? 0)}
                   </div>
                   <span className="text-[11px] text-emerald-400 font-medium">
                     Auto-Replenish Active via IDFC FIRST Bank
@@ -235,7 +239,7 @@ export const ProfileSettings: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-white">
-                      {activeVehicle.connectedCarPlatform || 'OEM Telematics API'}
+                      {activeVehicle?.connectedCarPlatform || 'OEM Telematics API'}
                     </h4>
                     <p className="text-[11px] text-slate-400">
                       Live sync of ODO, fuel, DTC codes & TPMS

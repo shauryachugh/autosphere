@@ -11,7 +11,8 @@ import {
   Check, 
   RotateCcw,
   CheckCircle2,
-  Bookmark
+  Bookmark,
+  Info
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
@@ -76,19 +77,19 @@ export const Recommendations: React.FC = () => {
 
     return {
       vehicleId: activeVehicle?.id,
-      make: activeVehicle?.make || 'Mahindra',
-      model: activeVehicle?.model || 'XUV700',
-      variant: activeVehicle?.variant || 'AX7L AWD',
+      make: activeVehicle?.make || '',
+      model: activeVehicle?.model || '',
+      variant: activeVehicle?.variant || '',
       manufacturingYear: activeVehicle?.manufacturingYear || activeVehicle?.year || 2023,
-      fuelType: activeVehicle?.fuelType || 'diesel',
-      transmission: activeVehicle?.transmission || 'automatic',
+      fuelType: activeVehicle?.fuelType || 'petrol',
+      transmission: activeVehicle?.transmission || 'manual',
       bodyType: activeVehicle?.bodyType || 'suv',
-      currentOdometer: activeVehicle?.odoKm || 28500,
-      monthlyKmDriven: 1250,
+      currentOdometer: activeVehicle?.odoKm || 0,
+      monthlyKmDriven: 1000,
       monthlyFuelExpenditure: estimatedMonthlyFuel,
       annualMaintenanceExpenses: estimatedAnnualMaint,
-      annualRepairExpenses: 8000,
-      annualInsuranceExpenses: 34000,
+      annualRepairExpenses: 5000,
+      annualInsuranceExpenses: 20000,
       currentEstimatedResaleValue: estimatedResale,
       city: activeVehicle?.city || 'Bengaluru',
       state: activeVehicle?.state || 'Karnataka',
@@ -287,6 +288,15 @@ export const Recommendations: React.FC = () => {
           )}
         </div>
       </div>
+
+      {!activeVehicle && (
+        <div className="p-4 rounded-2xl bg-cyan-950/20 border border-cyan-800/40 flex items-center gap-3">
+          <Info className="w-5 h-5 text-cyan-400 shrink-0" />
+          <p className="text-xs text-cyan-200 font-medium">
+            Complete your vehicle and budget details to generate recommendations.
+          </p>
+        </div>
+      )}
 
       {/* Progress Indicator Strip */}
       <div className="p-3 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between gap-2 overflow-x-auto text-xs font-semibold">

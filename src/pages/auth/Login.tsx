@@ -7,7 +7,7 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 
 export const Login: React.FC = () => {
-  const { signIn, loginAsDemo, isSupabaseConnected, isLoading } = useAuth();
+  const { signIn, isSupabaseConnected, isLoading } = useAuth();
   const { showToast } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,12 +34,6 @@ export const Login: React.FC = () => {
       showToast('Welcome back to AutoSphere!', 'success');
       navigate(from, { replace: true });
     }
-  };
-
-  const handleDemoLogin = () => {
-    loginAsDemo();
-    showToast('Logged in as Shaurya Sharma (Demo Mode)', 'info');
-    navigate(from, { replace: true });
   };
 
   return (
@@ -136,26 +130,6 @@ export const Login: React.FC = () => {
             Sign In with Email
           </Button>
         </form>
-
-        {/* Divider */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-800" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-dark-900 px-3 text-slate-500 font-medium">Or</span>
-          </div>
-        </div>
-
-        {/* Instant Demo Access Button */}
-        <button
-          type="button"
-          onClick={handleDemoLogin}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-dark-850 hover:bg-dark-800 border border-cyan-500/30 text-cyan-300 text-xs font-semibold hover:border-cyan-500/60 shadow-glow-subtle transition-all"
-        >
-          <Sparkles className="w-4 h-4 text-cyan-400" />
-          <span>Quick Launch with Demo Account (Shaurya S.)</span>
-        </button>
 
         {/* Footer Link */}
         <div className="text-center mt-6 text-xs text-slate-400">

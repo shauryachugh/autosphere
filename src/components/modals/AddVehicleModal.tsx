@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Car, Plus, ShieldCheck, Check } from 'lucide-react';
+import { X, Car, Plus, ShieldCheck, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { NumberPlate } from '../common/NumberPlate';
 import { FuelType, TransmissionType, BodyType } from '../../types';
@@ -9,64 +9,81 @@ import { SearchableLocationSelect } from '../common/SearchableLocationSelect';
 export const AddVehicleModal: React.FC = () => {
   const { isAddVehicleOpen, closeAddVehicle, addVehicle } = useApp();
 
-  const [make, setMake] = useState('Mahindra');
-  const [model, setModel] = useState('Scorpio-N');
-  const [variant, setVariant] = useState('Z8L 4x4 Diesel AT');
-  const [year, setYear] = useState('2023');
-  const [regNumber, setRegNumber] = useState('KA 01 MR 7812');
-  const [vin, setVin] = useState('MA1TN8SK9P2E90123');
-  const [fuelType, setFuelType] = useState<FuelType>('diesel');
-  const [transmission, setTransmission] = useState<TransmissionType>('automatic');
+  const [make, setMake] = useState('');
+  const [model, setModel] = useState('');
+  const [variant, setVariant] = useState('');
+  const [year, setYear] = useState('2024');
+  const [regNumber, setRegNumber] = useState('');
+  const [vin, setVin] = useState('');
+  const [fuelType, setFuelType] = useState<FuelType>('petrol');
+  const [transmission, setTransmission] = useState<TransmissionType>('manual');
   const [bodyType, setBodyType] = useState<BodyType>('suv');
-  const [odoKm, setOdoKm] = useState('18500');
-  const [purchasePrice, setPurchasePrice] = useState('2450000');
-  const [purchaseDate, setPurchaseDate] = useState('2023-04-15');
-  const [regYear, setRegYear] = useState('2023');
-  const [city, setCity] = useState('Bengaluru');
-  const [state, setState] = useState('Karnataka');
+  const [odoKm, setOdoKm] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [regYear, setRegYear] = useState('2024');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isAddVehicleOpen) return null;
 
   const popularMakes = ['Mahindra', 'Tata', 'Hyundai', 'Toyota', 'Maruti Suzuki', 'Kia', 'Skoda', 'BMW'];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addVehicle({
-      make,
-      model,
-      variant,
-      year: parseInt(year, 10) || 2023,
-      manufacturingYear: parseInt(year, 10) || 2023,
-      registrationYear: parseInt(regYear, 10) || parseInt(year, 10) || 2023,
-      purchasePriceINR: parseFloat(purchasePrice) || 2450000,
-      purchaseDate,
-      regNumber: regNumber.toUpperCase().trim(),
-      vin: vin.toUpperCase().trim(),
-      fuelType,
-      transmission,
-      bodyType,
-      powerBhp: fuelType === 'electric' ? 145 : 175,
-      torqueNm: fuelType === 'electric' ? 250 : 380,
-      odoKm: parseInt(odoKm, 10) || 10000,
-      currentFuelPercent: 75,
-      estimatedRangeKm: fuelType === 'electric' ? 320 : 580,
-      avgEfficiency: fuelType === 'electric' ? '132 Wh/km' : '14.5 km/l',
-      insurancePolicyNumber: 'HDFC-ERGO-GEN-' + Math.floor(100000 + Math.random() * 900000),
-      insuranceExpiryDate: '2027-05-20',
-      insuranceProvider: 'HDFC ERGO General Insurance',
-      pucExpiryDate: '2027-02-18',
-      lastServiceDate: '2026-06-10',
-      lastServiceKm: Math.max(0, (parseInt(odoKm, 10) || 10000) - 5000),
-      nextServiceDueDate: '2027-06-10',
-      nextServiceDueKm: (parseInt(odoKm, 10) || 10000) + 10000,
-      image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
-      isPrimary: false,
-      city,
-      state,
-      fastagBalanceINR: 1200,
-      connectedCarPlatform: 'AdrenoX',
-    });
-    closeAddVehicle();
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    try {
+      const created = await addVehicle({
+        make,
+        model,
+        variant,
+        year: parseInt(year, 10) || 2023,
+        manufacturingYear: parseInt(year, 10) || 2023,
+        registrationYear: parseInt(regYear, 10) || parseInt(year, 10) || 2023,
+        purchasePriceINR: parseFloat(purchasePrice) || 2450000,
+        purchaseDate,
+        regNumber: regNumber.toUpperCase().trim(),
+        vin: vin.toUpperCase().trim(),
+        fuelType,
+        transmission,
+        bodyType,
+        powerBhp: fuelType === 'electric' ? 145 : 175,
+        torqueNm: fuelType === 'electric' ? 250 : 380,
+        odoKm: parseInt(odoKm, 10) || 10000,
+        currentFuelPercent: 75,
+        estimatedRangeKm: fuelType === 'electric' ? 320 : 580,
+        avgEfficiency: fuelType === 'electric' ? '132 Wh/km' : '14.5 km/l',
+        insurancePolicyNumber: 'HDFC-ERGO-GEN-' + Math.floor(100000 + Math.random() * 900000),
+        insuranceExpiryDate: '2027-05-20',
+        insuranceProvider: 'HDFC ERGO General Insurance',
+        pucExpiryDate: '2027-02-18',
+        lastServiceDate: '2026-06-10',
+        lastServiceKm: Math.max(0, (parseInt(odoKm, 10) || 10000) - 5000),
+        nextServiceDueDate: '2027-06-10',
+        nextServiceDueKm: (parseInt(odoKm, 10) || 10000) + 10000,
+        image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+        isPrimary: false,
+        city,
+        state,
+        fastagBalanceINR: 1200,
+        connectedCarPlatform: 'AdrenoX',
+      });
+
+      if (created) {
+        closeAddVehicle();
+      } else {
+        setSubmitError('Failed to register vehicle to database. Please check your network and credentials.');
+      }
+    } catch (err: any) {
+      setSubmitError(err.message || 'An unexpected error occurred while saving the vehicle.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -95,6 +112,13 @@ export const AddVehicleModal: React.FC = () => {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+          {submitError && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
           {/* Quick Make Selection */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
@@ -158,7 +182,7 @@ export const AddVehicleModal: React.FC = () => {
                 required
                 value={regNumber}
                 onChange={(e) => setRegNumber(e.target.value)}
-                placeholder="e.g. KA 01 MR 7812"
+                placeholder="e.g. DL 01 AB 1234"
                 className="w-full bg-dark-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white uppercase focus:outline-none focus:border-cyan-500 font-mono"
               />
             </div>
@@ -168,7 +192,7 @@ export const AddVehicleModal: React.FC = () => {
                 HSRP Plate Preview
               </span>
               <NumberPlate
-                registrationNumber={regNumber || 'KA 01 MR 7812'}
+                registrationNumber={regNumber || 'DL 01 AB 1234'}
                 isEV={fuelType === 'electric'}
                 size="md"
               />
@@ -305,11 +329,16 @@ export const AddVehicleModal: React.FC = () => {
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-            <Button type="button" variant="ghost" onClick={closeAddVehicle}>
+            <Button type="button" variant="ghost" onClick={closeAddVehicle} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Register Car to Garage
+            <Button 
+              type="submit" 
+              variant="primary" 
+              disabled={isSubmitting}
+              icon={isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            >
+              {isSubmitting ? 'Saving to Database...' : 'Register Car to Garage'}
             </Button>
           </div>
         </form>

@@ -387,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
                   <span className="text-slate-400 text-[11px]">FASTag Balance:</span>
                   <span className="text-white font-semibold font-mono">
-                    ₹{(activeVehicle?.fastagBalanceINR || 1500).toLocaleString('en-IN')}
+                    ₹{(activeVehicle?.fastagBalanceINR ?? 0).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
@@ -400,10 +400,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <div className="min-w-0">
                     <p className="font-semibold text-white truncate text-[11px]">
-                      {profile?.full_name || user?.user_metadata?.full_name || 'Shaurya Sharma'}
+                      {profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'AutoSphere User'}
                     </p>
                     <p className="text-[10px] text-slate-500 truncate font-mono">
-                      {isGuest ? 'Demo Driver' : user?.email || 'Logged In'}
+                      {user?.email || 'Authenticated'}
                     </p>
                   </div>
                 </div>

@@ -100,7 +100,7 @@ export const Register: React.FC = () => {
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Shaurya Sharma"
+                placeholder="e.g. Rahul Sharma"
                 className="w-full bg-dark-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
               />
             </div>

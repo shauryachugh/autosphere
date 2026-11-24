@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { X, Wrench, Calendar, Clock, MapPin, CheckCircle, Shield } from 'lucide-react';
 import { Button } from '../common/Button';
 
@@ -12,14 +13,15 @@ export const BookServiceModal: React.FC = () => {
     bookService, 
     showToast 
   } = useApp();
+  const { user, profile } = useAuth();
 
-  const [vehicleId, setVehicleId] = useState(activeVehicle.id);
+  const [vehicleId, setVehicleId] = useState(activeVehicle?.id || '');
   const [serviceType, setServiceType] = useState<'Periodic Maintenance' | 'Brake Pad Replacement' | 'Diagnostics & OBD Check' | 'Full Detailing' | 'Battery Health Check'>('Periodic Maintenance');
   const [centerName, setCenterName] = useState('Sireesh Auto Mahindra Authorized, Singasandra');
   const [date, setDate] = useState('2026-11-28');
   const [timeSlot, setTimeSlot] = useState('09:30 AM');
   const [pickupDrop, setPickupDrop] = useState(true);
-  const [contactName, setContactName] = useState('Shaurya Sharma');
+  const [contactName, setContactName] = useState(profile?.full_name || user?.user_metadata?.full_name || '');
 
   if (!isBookServiceOpen) return null;
 

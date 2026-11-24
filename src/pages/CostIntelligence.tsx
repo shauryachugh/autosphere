@@ -75,30 +75,43 @@ export const CostIntelligence: React.FC = () => {
     .reduce((sum, e) => sum + e.amountINR, 0);
 
   // Cost per km calculation
-  const totalKmDriven = Math.max(1, activeVehicle.odoKm - 10000);
+  const totalKmDriven = Math.max(1, activeVehicle ? activeVehicle.odoKm - 10000 : 1);
   const costPerKm = (totalSpend / totalKmDriven).toFixed(2);
 
-  // Monthly aggregated data for Recharts Bar Chart
-  const monthlyData = [
-    { month: 'Jun 2026', fuel: 9200, service: 0, toll: 650, insurance: 0 },
-    { month: 'Jul 2026', fuel: 8400, service: 0, toll: 480, insurance: 0 },
-    { month: 'Aug 2026', fuel: 9800, service: 14800, toll: 720, insurance: 0 },
-    { month: 'Sep 2026', fuel: 8900, service: 0, toll: 510, insurance: 0 },
-    { month: 'Oct 2026', fuel: 10400, service: 0, toll: 850, insurance: 0 },
-    { month: 'Nov 2026', fuel: 10050, service: 0, toll: 505, insurance: 0 },
-  ];
+  const insuranceSpend = activeVehicleExpenses
+    .filter((e) => e.category === 'insurance')
+    .reduce((sum, e) => sum + e.amountINR, 0);
+  const otherSpend = activeVehicleExpenses
+    .filter((e) => e.category !== 'fuel' && e.category !== 'charging' && e.category !== 'service' && e.category !== 'toll' && e.category !== 'insurance')
+    .reduce((sum, e) => sum + e.amountINR, 0);
 
-  // Category distribution for Pie Chart
+  // Group actual expenses by month dynamically
+  const monthlyDataMap = new Map<string, { month: string; fuel: number; service: number; toll: number; insurance: number }>();
+  activeVehicleExpenses.forEach((exp) => {
+    const monthKey = exp.date.slice(0, 7);
+    if (!monthlyDataMap.has(monthKey)) {
+      monthlyDataMap.set(monthKey, { month: monthKey, fuel: 0, service: 0, toll: 0, insurance: 0 });
+    }
+    const row = monthlyDataMap.get(monthKey)!;
+    if (exp.category === 'fuel' || exp.category === 'charging') row.fuel += exp.amountINR;
+    else if (exp.category === 'service') row.service += exp.amountINR;
+    else if (exp.category === 'toll') row.toll += exp.amountINR;
+    else if (exp.category === 'insurance') row.insurance += exp.amountINR;
+  });
+  const monthlyData = Array.from(monthlyDataMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+
+  // Category distribution for Pie Chart derived from actual database records
   const categoryData = [
     { name: 'Fuel & Energy', value: fuelSpend, color: '#00D2FF' },
     { name: 'Scheduled Service', value: serviceSpend, color: '#38BDF8' },
-    { name: 'Insurance & Taxes', value: 38400, color: '#818CF8' },
+    { name: 'Insurance & Taxes', value: insuranceSpend, color: '#818CF8' },
     { name: 'FASTag & Tolls', value: tollSpend, color: '#34D399' },
-    { name: 'Accessories & Wash', value: 13199, color: '#F472B6' },
-  ];
+    { name: 'Accessories & Other', value: otherSpend, color: '#F472B6' },
+  ].filter(c => c.value > 0);
 
   // CSV Export simulation
   const handleExportCSV = () => {
+    if (!activeVehicle) return;
     const csvHeader = 'Date,Category,Vendor,Notes,PaymentMethod,AmountINR\n';
     const csvRows = activeVehicleExpenses
       .map(
@@ -110,12 +123,91 @@ export const CostIntelligence: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `AutoSphere_TCO_${activeVehicle.regNumber}.csv`);
+    link.setAttribute('download', `AutoSphere_TCO_${activeVehicle.regNumber || 'Vehicle'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     showToast('TCO Ledger exported to CSV file successfully.', 'success');
   };
+
+  if (!activeVehicle) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Ownership Cost Intelligence
+              </h1>
+              <Badge variant="electric" size="sm">
+                TCO Analytics
+              </Badge>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Comprehensive lifecycle cost intelligence, fuel tracking and audit ledger
+            </p>
+          </div>
+        </div>
+        <Card className="p-12 text-center border-dashed border-slate-800 bg-slate-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <Coins className="w-12 h-12 text-slate-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No vehicles added yet</h3>
+            <p className="text-sm text-slate-400">
+              No vehicles added yet. Add your first vehicle to get started.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (activeVehicleExpenses.length === 0) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Ownership Cost Intelligence
+              </h1>
+              <Badge variant="electric" size="sm">
+                TCO Analytics
+              </Badge>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Comprehensive lifecycle cost intelligence, fuel tracking and audit ledger for {activeVehicle.make} {activeVehicle.model}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={openLogExpense}
+              variant="primary"
+              size="sm"
+              icon={<PlusCircle className="w-4 h-4" />}
+            >
+              Log Expense
+            </Button>
+          </div>
+        </div>
+        <Card className="p-12 text-center border-dashed border-slate-800 bg-slate-900/40">
+          <div className="max-w-md mx-auto space-y-4">
+            <Coins className="w-12 h-12 text-slate-600 mx-auto" />
+            <h3 className="text-lg font-bold text-white">No recorded expenses</h3>
+            <p className="text-sm text-slate-400">
+              Add vehicle expenses to view your ownership cost analysis.
+            </p>
+            <Button
+              onClick={openLogExpense}
+              variant="primary"
+              icon={<PlusCircle className="w-4 h-4" />}
+            >
+              Log Expense
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

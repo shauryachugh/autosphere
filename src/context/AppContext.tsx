@@ -34,11 +34,14 @@ interface AppContextType {
   // Vehicles
   vehicles: Vehicle[];
   activeVehicleId: string;
-  activeVehicle: Vehicle;
+  activeVehicle: Vehicle | null;
   setActiveVehicleId: (id: string) => void;
+  isVehiclesLoading: boolean;
+  vehiclesError: string | null;
+  refreshVehicles: () => Promise<void>;
   addVehicle: (vehicle: Partial<Vehicle> & Pick<Vehicle, 'make' | 'model' | 'variant' | 'year' | 'regNumber' | 'fuelType' | 'transmission' | 'odoKm' | 'city' | 'state'>) => Promise<Vehicle | null>;
-  updateVehicle: (id: string, updates: Partial<Vehicle>) => Promise<void>;
-  deleteVehicle: (id: string) => Promise<void>;
+  updateVehicle: (id: string, updates: Partial<Vehicle>) => Promise<boolean>;
+  deleteVehicle: (id: string) => Promise<boolean>;
 
   // Expenses
   expenses: Expense[];
@@ -108,178 +111,251 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+function mapDbVehicleToFrontend(v: any): Vehicle {
+  return {
+    id: v.id,
+    make: v.make,
+    model: v.model,
+    variant: v.variant,
+    year: v.manufacturing_year,
+    manufacturingYear: v.manufacturing_year,
+    registrationYear: v.registration_year,
+    regNumber: v.registration_number,
+    vin: v.vin || '',
+    fuelType: v.fuel_type as any,
+    transmission: v.transmission as any,
+    bodyType: (v.body_type as any) || 'suv',
+    powerBhp: v.power_bhp || 150,
+    torqueNm: v.torque_nm || 300,
+    odoKm: v.current_odometer,
+    purchasePriceINR: Number(v.purchase_price) || 0,
+    purchaseDate: v.purchase_date || undefined,
+    currentFuelPercent: v.current_fuel_percent ?? 70,
+    batteryHealthPercent: v.battery_health_percent ?? 98,
+    estimatedRangeKm: v.estimated_range_km || 450,
+    avgEfficiency: v.avg_efficiency || '14.2 km/l',
+    insurancePolicyNumber: v.insurance_policy_number || '',
+    insuranceExpiryDate: v.insurance_expiry_date || '2027-04-18',
+    insuranceProvider: v.insurance_provider || 'HDFC ERGO General Insurance',
+    pucExpiryDate: v.puc_expiry_date || '2027-01-15',
+    lastServiceDate: v.last_service_date || '2026-08-10',
+    lastServiceKm: v.last_service_km || 20000,
+    nextServiceDueDate: v.next_service_due_date || '2027-02-10',
+    nextServiceDueKm: v.next_service_due_km || 30000,
+    healthScore: v.health_score || 95,
+    image: v.image_url || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+    isPrimary: Boolean(v.is_primary),
+    city: v.registration_city,
+    state: v.registration_state,
+    fastagBalanceINR: 1500,
+    connectedCarPlatform: (v.connected_car_platform as any) || 'AdrenoX',
+    connectedStatus: (v.connected_status as any) || 'online',
+    tyrePressurePsi: {
+      frontLeft: v.tyre_pressure_front_left || 34,
+      frontRight: v.tyre_pressure_front_right || 34,
+      rearLeft: v.tyre_pressure_rear_left || 33,
+      rearRight: v.tyre_pressure_rear_right || 33,
+      spare: v.tyre_pressure_spare || 34,
+    },
+  };
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isGuest } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
 
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const saved = localStorage.getItem('autosphere_vehicles');
-    return saved ? JSON.parse(saved) : initialVehicles;
-  });
+  const [isVehiclesLoading, setIsVehiclesLoading] = useState<boolean>(true);
+  const [vehiclesError, setVehiclesError] = useState<string | null>(null);
 
-  const [activeVehicleId, setActiveVehicleId] = useState<string>(() => {
-    const saved = localStorage.getItem('autosphere_active_vehicle');
-    return saved || 'veh-xuv700-01';
-  });
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [activeVehicleId, setActiveVehicleId] = useState<string>('');
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('autosphere_expenses');
-    return saved ? JSON.parse(saved) : initialExpenses;
-  });
+  // Fetch all vehicles belonging to the authenticated user from Supabase
+  const fetchUserVehicles = React.useCallback(async (userId: string) => {
+    setIsVehiclesLoading(true);
+    setVehiclesError(null);
 
-  // Sync Supabase data when real authenticated user is loaded
-  useEffect(() => {
-    let isMounted = true;
-
-    if (!user && !isGuest) {
-      setVehicles([]);
-      setExpenses([]);
-      setActiveVehicleId('');
-      return;
-    }
-
-    if (isGuest) {
-      const savedVehicles = localStorage.getItem('autosphere_vehicles');
-      setVehicles(savedVehicles ? JSON.parse(savedVehicles) : initialVehicles);
-      const savedExpenses = localStorage.getItem('autosphere_expenses');
-      setExpenses(savedExpenses ? JSON.parse(savedExpenses) : initialExpenses);
-      const savedActive = localStorage.getItem('autosphere_active_vehicle');
-      setActiveVehicleId(savedActive || 'veh-xuv700-01');
-      return;
-    }
-
-    if (!isSupabaseConfigured || !user) return;
-
-    async function syncSupabase() {
+    // 1. If Supabase is configured, Supabase is the permanent source of truth
+    if (isSupabaseConfigured) {
       try {
-        // 1. Vehicles from Supabase
         const { data: dbVehicles, error: vErr } = await (supabase
           .from('vehicles') as any)
           .select('*')
-          .eq('user_id', user!.id)
+          .eq('user_id', userId)
           .order('created_at', { ascending: false });
 
-        if (!vErr && isMounted) {
-          if (dbVehicles && dbVehicles.length > 0) {
-            const mappedVehicles: Vehicle[] = (dbVehicles as any[]).map((v) => ({
-              id: v.id,
-              make: v.make,
-              model: v.model,
-              variant: v.variant,
-              year: v.manufacturing_year,
-              manufacturingYear: v.manufacturing_year,
-              registrationYear: v.registration_year,
-              regNumber: v.registration_number,
-              vin: v.vin || '',
-              fuelType: v.fuel_type as any,
-              transmission: v.transmission as any,
-              bodyType: (v.body_type as any) || 'suv',
-              powerBhp: v.power_bhp || 150,
-              torqueNm: v.torque_nm || 300,
-              odoKm: v.current_odometer,
-              purchasePriceINR: Number(v.purchase_price) || 0,
-              purchaseDate: v.purchase_date || undefined,
-              currentFuelPercent: v.current_fuel_percent || 70,
-              batteryHealthPercent: v.battery_health_percent || 98,
-              estimatedRangeKm: v.estimated_range_km || 450,
-              avgEfficiency: v.avg_efficiency || '14.2 km/l',
-              insurancePolicyNumber: v.insurance_policy_number || '',
-              insuranceExpiryDate: v.insurance_expiry_date || '2027-04-18',
-              insuranceProvider: v.insurance_provider || 'HDFC ERGO General Insurance',
-              pucExpiryDate: v.puc_expiry_date || '2027-01-15',
-              lastServiceDate: v.last_service_date || '2026-08-10',
-              lastServiceKm: v.last_service_km || 20000,
-              nextServiceDueDate: v.next_service_due_date || '2027-02-10',
-              nextServiceDueKm: v.next_service_due_km || 30000,
-              healthScore: v.health_score || 95,
-              image: v.image_url || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
-              isPrimary: v.is_primary,
-              city: v.registration_city,
-              state: v.registration_state,
-              fastagBalanceINR: 1500,
-              connectedCarPlatform: (v.connected_car_platform as any) || 'AdrenoX',
-              connectedStatus: (v.connected_status as any) || 'online',
-              tyrePressurePsi: {
-                frontLeft: v.tyre_pressure_front_left || 34,
-                frontRight: v.tyre_pressure_front_right || 34,
-                rearLeft: v.tyre_pressure_rear_left || 33,
-                rearRight: v.tyre_pressure_rear_right || 33,
-                spare: v.tyre_pressure_spare || 34,
-              },
-            }));
-            setVehicles(mappedVehicles);
-            setActiveVehicleId((prev) => mappedVehicles.some((m) => m.id === prev) ? prev : mappedVehicles[0].id);
-          } else {
-            // User has 0 vehicles in Supabase — clean empty state, no mock data!
-            setVehicles([]);
-            setActiveVehicleId('');
+        if (vErr) {
+          console.error('[AutoSphere] Supabase vehicle retrieval error:', vErr);
+          setVehiclesError(vErr.message);
+
+          // Attempt fallback to user-scoped cache to avoid blank screen during network glitch
+          if (typeof localStorage !== 'undefined') {
+            const cached = localStorage.getItem(`autosphere_vehicles_${userId}`);
+            if (cached) {
+              try {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  setVehicles(parsed);
+                  setActiveVehicleId((prev) => parsed.some((p: Vehicle) => p.id === prev) ? prev : parsed[0].id);
+                }
+              } catch {}
+            }
           }
-        } else if (vErr) {
-          console.error('Error fetching vehicles from Supabase:', vErr);
+          setIsVehiclesLoading(false);
+          return;
         }
 
-        // 2. Vehicle Expenses from Supabase
-        const { data: dbExpenses, error: eErr } = await (supabase
-          .from('vehicle_expenses') as any)
-          .select('*')
-          .eq('user_id', user!.id)
-          .order('expense_date', { ascending: false });
+        if (dbVehicles && dbVehicles.length > 0) {
+          const mapped: Vehicle[] = (dbVehicles as any[]).map(mapDbVehicleToFrontend);
+          setVehicles(mapped);
+          setActiveVehicleId((prev) => mapped.some((m) => m.id === prev) ? prev : (mapped.find((m) => m.isPrimary)?.id || mapped[0].id));
 
-        if (!eErr && isMounted) {
-          if (dbExpenses && dbExpenses.length > 0) {
-            const mappedExpenses: Expense[] = (dbExpenses as any[]).map((e) => ({
-              id: e.id,
-              vehicleId: e.vehicle_id,
-              category: e.category as any,
-              amountINR: Number(e.amount_inr),
-              date: e.expense_date,
-              odoKm: e.odometer_km || 0,
-              vendor: e.vendor,
-              notes: e.notes || '',
-              paymentMethod: e.payment_method as any,
-              receiptAttached: e.receipt_attached,
-              fuelLitresOrUnits: e.fuel_litres_or_units ? Number(e.fuel_litres_or_units) : undefined,
-            }));
-            setExpenses(mappedExpenses);
-          } else {
-            setExpenses([]);
+          // Save to user-scoped cache
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(`autosphere_vehicles_${userId}`, JSON.stringify(mapped));
+            localStorage.setItem(`autosphere_active_vehicle_${userId}`, mapped[0].id);
           }
-        } else if (eErr) {
-          console.error('Error fetching expenses from Supabase:', eErr);
+        } else {
+          // Confirmed 0 vehicles in database for this account
+          setVehicles([]);
+          setActiveVehicleId('');
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(`autosphere_vehicles_${userId}`, JSON.stringify([]));
+          }
         }
-      } catch (err) {
-        console.error('Supabase synchronization error:', err);
+
+        setIsVehiclesLoading(false);
+        return;
+      } catch (err: any) {
+        console.error('[AutoSphere] Exception during vehicle fetch from Supabase:', err);
+        setVehiclesError(err.message || 'Failed to retrieve vehicles from database');
       }
     }
 
-    syncSupabase();
-    return () => { isMounted = false; };
-  }, [user, isGuest]);
+    // 2. Offline / Demo fallback: use user-scoped localStorage
+    if (typeof localStorage !== 'undefined') {
+      const storageKey = `autosphere_vehicles_${userId}`;
+      const local = localStorage.getItem(storageKey);
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed)) {
+            setVehicles(parsed);
+            if (parsed.length > 0) {
+              setActiveVehicleId((prev) => parsed.some((m: Vehicle) => m.id === prev) ? prev : parsed[0].id);
+            } else {
+              setActiveVehicleId('');
+            }
+            setIsVehiclesLoading(false);
+            return;
+          }
+        } catch {}
+      }
+    }
 
-  const [diagnostics, setDiagnostics] = useState<DiagnosticIssue[]>(() => {
-    const saved = localStorage.getItem('autosphere_diagnostics');
-    return saved ? JSON.parse(saved) : initialDiagnostics;
-  });
+    setVehicles([]);
+    setActiveVehicleId('');
+    setIsVehiclesLoading(false);
+  }, []);
 
-  const [documents, setDocuments] = useState<DocumentItem[]>(() => {
-    const saved = localStorage.getItem('autosphere_documents');
-    return saved ? JSON.parse(saved) : initialDocuments;
-  });
+  // Fetch expenses for the authenticated user
+  const fetchUserExpenses = React.useCallback(async (userId: string) => {
+    if (!isSupabaseConfigured) return;
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    const saved = localStorage.getItem('autosphere_notifications');
-    return saved ? JSON.parse(saved) : initialNotifications;
-  });
+    try {
+      const { data: dbExpenses, error: eErr } = await (supabase
+        .from('vehicle_expenses') as any)
+        .select('*')
+        .eq('user_id', userId)
+        .order('expense_date', { ascending: false });
 
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('autosphere_profile');
-    return saved ? JSON.parse(saved) : initialUserProfile;
-  });
+      if (!eErr && dbExpenses) {
+        const mapped: Expense[] = (dbExpenses as any[]).map((e) => ({
+          id: e.id,
+          vehicleId: e.vehicle_id,
+          category: e.category as any,
+          amountINR: Number(e.amount_inr),
+          date: e.expense_date,
+          odoKm: e.odometer_km || 0,
+          vendor: e.vendor || '',
+          notes: e.notes || '',
+          paymentMethod: e.payment_method as any,
+          receiptAttached: Boolean(e.receipt_attached),
+          fuelLitresOrUnits: e.fuel_litres_or_units ? Number(e.fuel_litres_or_units) : undefined,
+        }));
+        setExpenses(mapped);
+      }
+    } catch (err) {
+      console.error('[AutoSphere] Expense retrieval error:', err);
+    }
+  }, []);
+
+  // Primary lifecycle coordinator: waits for authentication restoration before making decisions
+  useEffect(() => {
+    let isMounted = true;
+
+    // While Supabase authentication is restoring the session: DO NOT TOUCH STATE!
+    if (isAuthLoading) {
+      setIsVehiclesLoading(true);
+      return;
+    }
+
+    // Unauthenticated (logged out): clear user-specific in-memory state cleanly
+    if (!user) {
+      setVehicles([]);
+      setExpenses([]);
+      setActiveVehicleId('');
+      setIsVehiclesLoading(false);
+      setVehiclesError(null);
+      return;
+    }
+
+    // Authenticated user: retrieve their actual records from Supabase
+    if (user && isMounted) {
+      fetchUserVehicles(user.id);
+      fetchUserExpenses(user.id);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, isAuthLoading, fetchUserVehicles, fetchUserExpenses]);
+
+  const refreshVehicles = React.useCallback(async () => {
+    if (user) {
+      await fetchUserVehicles(user.id);
+      await fetchUserExpenses(user.id);
+    }
+  }, [user, fetchUserVehicles, fetchUserExpenses]);
+
+  const [diagnostics, setDiagnostics] = useState<DiagnosticIssue[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => ({
+    name: '',
+    email: '',
+    phone: '',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    fastagWalletBalance: 0,
+    defaultFuelType: 'petrol',
+    drivingMonthlyAverageKm: 1000,
+    connectedCarSyncEnabled: false,
+    alerts: {
+      serviceReminders: true,
+      pucExpiry: true,
+      insuranceRenewal: true,
+      fastagLowBalance: true,
+      speedAlerts: false,
+    },
+  }));
 
   const [serviceBookings, setServiceBookings] = useState<ServiceBooking[]>([]);
   const [cart, setCart] = useState<{ item: Accessory; quantity: number }[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const saved = aiAssistantService.getChatHistory();
-    return saved && saved.length > 0 ? saved : sampleChatMessages;
+    return saved && saved.length > 0 ? saved : [];
   });
   const [isAiTyping, setIsAiTyping] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -293,18 +369,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Toast notifications
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Persist to localStorage
+  // Persist to user-scoped storage to prevent cross-account contamination or premature wipe
   useEffect(() => {
-    localStorage.setItem('autosphere_vehicles', JSON.stringify(vehicles));
-  }, [vehicles]);
+    if (typeof localStorage === 'undefined' || isAuthLoading) return;
+    if (user) {
+      localStorage.setItem(`autosphere_vehicles_${user.id}`, JSON.stringify(vehicles));
+      if (activeVehicleId) {
+        localStorage.setItem(`autosphere_active_vehicle_${user.id}`, activeVehicleId);
+      }
+    }
+  }, [vehicles, activeVehicleId, user, isAuthLoading]);
 
   useEffect(() => {
-    localStorage.setItem('autosphere_active_vehicle', activeVehicleId);
-  }, [activeVehicleId]);
-
-  useEffect(() => {
-    localStorage.setItem('autosphere_expenses', JSON.stringify(expenses));
-  }, [expenses]);
+    if (typeof localStorage === 'undefined' || isAuthLoading) return;
+    if (user) {
+      localStorage.setItem(`autosphere_expenses_${user.id}`, JSON.stringify(expenses));
+    }
+  }, [expenses, user, isAuthLoading]);
 
   useEffect(() => {
     localStorage.setItem('autosphere_diagnostics', JSON.stringify(diagnostics));
@@ -334,7 +415,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const activeVehicle = vehicles.find((v) => v.id === activeVehicleId) || vehicles[0] || initialVehicles[0];
+  const activeVehicle = vehicles.find((v) => v.id === activeVehicleId) || vehicles[0] || null;
 
   const activeVehicleExpenses = expenses.filter((e) => activeVehicle && e.vehicleId === activeVehicle.id);
 
@@ -376,7 +457,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Persist to Supabase if connected and authenticated
-    if (isSupabaseConfigured && user && !isGuest) {
+    if (isSupabaseConfigured && user) {
       try {
         const { data, error } = await (supabase.from('vehicles') as any)
           .insert([{
@@ -408,7 +489,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .single();
 
         if (error) {
-          console.error('Error inserting vehicle into Supabase:', error);
+          console.error('[AutoSphere] Error inserting vehicle into Supabase:', error);
           showToast('Failed to save vehicle: ' + error.message, 'error');
           return null;
         }
@@ -416,15 +497,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (data) {
           const persistedVehicle: Vehicle = {
             ...baseVehicle,
+            ...mapDbVehicleToFrontend(data),
             id: data.id, // True PostgreSQL UUID
           };
           setVehicles((prev) => [persistedVehicle, ...prev]);
           setActiveVehicleId(persistedVehicle.id);
+
+          if (typeof localStorage !== 'undefined') {
+            const userKey = `autosphere_vehicles_${user.id}`;
+            const existingRaw = localStorage.getItem(userKey);
+            let userList: Vehicle[] = [];
+            try { userList = existingRaw ? JSON.parse(existingRaw) : []; } catch {}
+            const updated = [persistedVehicle, ...userList.filter((v: Vehicle) => v.id !== persistedVehicle.id)];
+            localStorage.setItem(userKey, JSON.stringify(updated));
+            localStorage.setItem(`autosphere_active_vehicle_${user.id}`, persistedVehicle.id);
+          }
+
           showToast(`${persistedVehicle.make} ${persistedVehicle.model} added to your garage!`, 'success');
           return persistedVehicle;
         }
       } catch (err: any) {
-        console.error('Exception inserting vehicle into Supabase:', err);
+        console.error('[AutoSphere] Exception inserting vehicle into Supabase:', err);
         showToast('Error saving vehicle: ' + err.message, 'error');
         return null;
       }
@@ -432,18 +525,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setVehicles((prev) => [baseVehicle, ...prev]);
     setActiveVehicleId(tempId);
+    if (typeof localStorage !== 'undefined') {
+      const storageKey = user ? `autosphere_vehicles_${user.id}` : 'autosphere_vehicles_guest';
+      const updated = [baseVehicle, ...vehicles];
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    }
     showToast(`${baseVehicle.make} ${baseVehicle.model} added to your garage!`, 'success');
     return baseVehicle;
   };
 
-  const updateVehicle = async (id: string, updates: Partial<Vehicle>) => {
+  const updateVehicle = async (id: string, updates: Partial<Vehicle>): Promise<boolean> => {
     setVehicles((prev) =>
       prev.map((v) => (v.id === id ? { ...v, ...updates } : v))
     );
 
-    if (isSupabaseConfigured && user && !isGuest) {
+    if (isSupabaseConfigured && user) {
       try {
-        const dbUpdates: any = {};
+        const dbUpdates: any = { updated_at: new Date().toISOString() };
+        if (updates.make !== undefined) dbUpdates.make = updates.make;
+        if (updates.model !== undefined) dbUpdates.model = updates.model;
+        if (updates.variant !== undefined) dbUpdates.variant = updates.variant;
+        if (updates.year !== undefined) dbUpdates.manufacturing_year = updates.year;
+        if (updates.manufacturingYear !== undefined) dbUpdates.manufacturing_year = updates.manufacturingYear;
+        if (updates.registrationYear !== undefined) dbUpdates.registration_year = updates.registrationYear;
+        if (updates.regNumber !== undefined) dbUpdates.registration_number = updates.regNumber;
         if (updates.odoKm !== undefined) dbUpdates.current_odometer = updates.odoKm;
         if (updates.healthScore !== undefined) dbUpdates.health_score = updates.healthScore;
         if (updates.currentFuelPercent !== undefined) dbUpdates.current_fuel_percent = updates.currentFuelPercent;
@@ -451,6 +556,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (updates.isPrimary !== undefined) dbUpdates.is_primary = updates.isPrimary;
         if (updates.insuranceExpiryDate !== undefined) dbUpdates.insurance_expiry_date = updates.insuranceExpiryDate;
         if (updates.pucExpiryDate !== undefined) dbUpdates.puc_expiry_date = updates.pucExpiryDate;
+        if (updates.city !== undefined) dbUpdates.registration_city = updates.city;
+        if (updates.state !== undefined) dbUpdates.registration_state = updates.state;
 
         const { error } = await (supabase.from('vehicles') as any)
           .update(dbUpdates)
@@ -458,27 +565,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .eq('user_id', user.id);
 
         if (error) {
-          console.error('Error updating vehicle in Supabase:', error);
+          console.error('[AutoSphere] Error updating vehicle in Supabase:', error);
           showToast('Failed to update vehicle in database: ' + error.message, 'error');
-          return;
+          return false;
         }
       } catch (err: any) {
-        console.error('Exception updating vehicle in Supabase:', err);
+        console.error('[AutoSphere] Exception updating vehicle in Supabase:', err);
         showToast('Error updating vehicle: ' + err.message, 'error');
-        return;
+        return false;
       }
     }
 
-    showToast('Vehicle details updated successfully.', 'success');
-  };
-
-  const deleteVehicle = async (id: string) => {
-    if (vehicles.length <= 1) {
-      showToast('You must keep at least one vehicle in your garage.', 'warning');
-      return;
+    if (typeof localStorage !== 'undefined') {
+      const storageKey = user ? `autosphere_vehicles_${user.id}` : 'autosphere_vehicles_guest';
+      const updated = vehicles.map((v) => (v.id === id ? { ...v, ...updates } : v));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
     }
 
-    if (isSupabaseConfigured && user && !isGuest) {
+    showToast('Vehicle details updated successfully.', 'success');
+    return true;
+  };
+
+  const deleteVehicle = async (id: string): Promise<boolean> => {
+    if (vehicles.length <= 1) {
+      showToast('You must keep at least one vehicle in your garage.', 'warning');
+      return false;
+    }
+
+    if (isSupabaseConfigured && user) {
       try {
         const { error } = await (supabase.from('vehicles') as any)
           .delete()
@@ -486,14 +600,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .eq('user_id', user.id);
 
         if (error) {
-          console.error('Error deleting vehicle from Supabase:', error);
+          console.error('[AutoSphere] Error deleting vehicle from Supabase:', error);
           showToast('Failed to delete vehicle: ' + error.message, 'error');
-          return;
+          return false;
         }
       } catch (err: any) {
-        console.error('Exception deleting vehicle from Supabase:', err);
+        console.error('[AutoSphere] Exception deleting vehicle from Supabase:', err);
         showToast('Error deleting vehicle: ' + err.message, 'error');
-        return;
+        return false;
       }
     }
 
@@ -503,11 +617,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveVehicleId(remaining[0]?.id || '');
     }
 
+    if (typeof localStorage !== 'undefined') {
+      const storageKey = user ? `autosphere_vehicles_${user.id}` : 'autosphere_vehicles_guest';
+      localStorage.setItem(storageKey, JSON.stringify(remaining));
+      if (remaining[0]) {
+        const activeKey = user ? `autosphere_active_vehicle_${user.id}` : 'autosphere_active_vehicle_guest';
+        localStorage.setItem(activeKey, remaining[0].id);
+      }
+    }
+
     showToast('Vehicle removed from garage.', 'info');
+    return true;
   };
 
   const addExpense = async (newExpenseData: Omit<Expense, 'id'>) => {
-    if (isSupabaseConfigured && user && !isGuest) {
+    if (isSupabaseConfigured && user) {
       try {
         const { data, error } = await (supabase.from('vehicle_expenses') as any)
           .insert([{
@@ -574,7 +698,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteExpense = async (id: string) => {
-    if (isSupabaseConfigured && user && !isGuest) {
+    if (isSupabaseConfigured && user) {
       try {
         const { error } = await (supabase.from('vehicle_expenses') as any)
           .delete()
@@ -734,6 +858,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeVehicleId,
         activeVehicle,
         setActiveVehicleId,
+        isVehiclesLoading,
+        vehiclesError,
+        refreshVehicles,
         addVehicle,
         updateVehicle,
         deleteVehicle,
