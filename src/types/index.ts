@@ -20,12 +20,16 @@ export interface Vehicle {
   powerBhp: number;
   torqueNm: number;
   odoKm: number;
+  monthlyKmDriven?: number;
   purchasePriceINR?: number;
   purchaseDate?: string;
+  estimatedResaleValueINR?: number;
   currentFuelPercent: number; // or SoC % for EV
   batteryHealthPercent?: number; // for EV
   estimatedRangeKm: number;
-  avgEfficiency: string; // e.g., "14.2 km/l" or "138 Wh/km"
+  avgEfficiency: string; // e.g., "14.2 km/l" or "7.5 km/kWh"
+  claimedMileage?: number; // Manufacturer-claimed mileage in fuel-appropriate unit
+  actualMileage?: number; // User-reported actual average mileage in fuel-appropriate unit
   insurancePolicyNumber: string;
   insuranceExpiryDate: string;
   insuranceProvider: string;

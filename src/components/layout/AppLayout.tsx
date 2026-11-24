@@ -7,6 +7,7 @@ import { ToastContainer } from '../common/ToastContainer';
 import { LogExpenseModal } from '../modals/LogExpenseModal';
 import { BookServiceModal } from '../modals/BookServiceModal';
 import { AddVehicleModal } from '../modals/AddVehicleModal';
+import { EditVehicleModal } from '../modals/EditVehicleModal';
 import { ValuationModal } from '../modals/ValuationModal';
 
 export const AppLayout: React.FC = () => {
@@ -50,6 +51,7 @@ export const AppLayout: React.FC = () => {
       <LogExpenseModal />
       <BookServiceModal />
       <AddVehicleModal />
+      <EditVehicleModal />
       <ValuationModal />
       <ToastContainer />
     </div>

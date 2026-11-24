@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { aiAssistantService } from '../services/aiAssistantService';
 import { synthesizeVehicleContext } from '../services/aiContextService';
+import { formatVehicleEfficiency } from '../utils/vehicleEconomy';
 import { 
   Vehicle, 
   Expense, 
@@ -99,6 +100,11 @@ interface AppContextType {
   openAddVehicle: () => void;
   closeAddVehicle: () => void;
 
+  isEditVehicleOpen: boolean;
+  editingVehicle: Vehicle | null;
+  openEditVehicle: (vehicle: Vehicle) => void;
+  closeEditVehicle: () => void;
+
   isValuationOpen: boolean;
   openValuation: () => void;
   closeValuation: () => void;
@@ -112,6 +118,13 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 function mapDbVehicleToFrontend(v: any): Vehicle {
+  const actualMileage = v.actual_mileage != null ? Number(v.actual_mileage) : undefined;
+  const claimedMileage = v.claimed_mileage != null ? Number(v.claimed_mileage) : undefined;
+  const formattedEfficiency =
+    actualMileage != null && actualMileage > 0
+      ? formatVehicleEfficiency(actualMileage, v.fuel_type as any)
+      : (v.avg_efficiency || '');
+
   return {
     id: v.id,
     make: v.make,
@@ -125,15 +138,21 @@ function mapDbVehicleToFrontend(v: any): Vehicle {
     fuelType: v.fuel_type as any,
     transmission: v.transmission as any,
     bodyType: (v.body_type as any) || 'suv',
+    engineCc: v.engine_cc != null ? Number(v.engine_cc) : undefined,
+    batteryCapacityKwh: v.battery_capacity_kwh != null ? Number(v.battery_capacity_kwh) : undefined,
     powerBhp: v.power_bhp || 150,
     torqueNm: v.torque_nm || 300,
     odoKm: v.current_odometer,
-    purchasePriceINR: Number(v.purchase_price) || 0,
+    monthlyKmDriven: v.monthly_km_driven != null ? Number(v.monthly_km_driven) : undefined,
+    purchasePriceINR: v.purchase_price != null ? Number(v.purchase_price) : undefined,
     purchaseDate: v.purchase_date || undefined,
+    estimatedResaleValueINR: v.estimated_resale_value != null ? Number(v.estimated_resale_value) : undefined,
     currentFuelPercent: v.current_fuel_percent ?? 70,
     batteryHealthPercent: v.battery_health_percent ?? 98,
     estimatedRangeKm: v.estimated_range_km || 450,
-    avgEfficiency: v.avg_efficiency || '14.2 km/l',
+    avgEfficiency: formattedEfficiency,
+    claimedMileage,
+    actualMileage,
     insurancePolicyNumber: v.insurance_policy_number || '',
     insuranceExpiryDate: v.insurance_expiry_date || '2027-04-18',
     insuranceProvider: v.insurance_provider || 'HDFC ERGO General Insurance',
@@ -364,6 +383,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLogExpenseOpen, setIsLogExpenseOpen] = useState(false);
   const [isBookServiceOpen, setIsBookServiceOpen] = useState(false);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
+  const [isEditVehicleOpen, setIsEditVehicleOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isValuationOpen, setIsValuationOpen] = useState(false);
 
   // Toast notifications
@@ -429,7 +450,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       vin: newVehicleData.vin || ('MA1' + Math.random().toString(36).substring(2, 10).toUpperCase()),
       currentFuelPercent: 75,
       estimatedRangeKm: 450,
-      avgEfficiency: newVehicleData.fuelType === 'electric' ? '135 Wh/km' : '14.2 km/l',
+      avgEfficiency:
+        newVehicleData.actualMileage && newVehicleData.actualMileage > 0
+          ? formatVehicleEfficiency(newVehicleData.actualMileage, newVehicleData.fuelType)
+          : (newVehicleData.avgEfficiency || ''),
       insurancePolicyNumber: 'HDFC-ERGO-' + Math.floor(100000 + Math.random() * 900000),
       insuranceExpiryDate: '2027-05-20',
       insuranceProvider: 'HDFC ERGO General Insurance',
@@ -472,9 +496,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             fuel_type: baseVehicle.fuelType,
             transmission: baseVehicle.transmission,
             body_type: baseVehicle.bodyType,
+            engine_cc: baseVehicle.engineCc ?? null,
+            battery_capacity_kwh: baseVehicle.batteryCapacityKwh ?? null,
             current_odometer: baseVehicle.odoKm,
-            purchase_price: baseVehicle.purchasePriceINR || 2400000,
-            purchase_date: baseVehicle.purchaseDate || new Date().toISOString().split('T')[0],
+            monthly_km_driven: baseVehicle.monthlyKmDriven ?? null,
+            purchase_price: baseVehicle.purchasePriceINR ?? null,
+            purchase_date: baseVehicle.purchaseDate || null,
+            estimated_resale_value: baseVehicle.estimatedResaleValueINR ?? null,
+            claimed_mileage: baseVehicle.claimedMileage ?? null,
+            actual_mileage: baseVehicle.actualMileage ?? null,
+            avg_efficiency: baseVehicle.avgEfficiency || '',
             registration_state: baseVehicle.state,
             registration_city: baseVehicle.city,
             power_bhp: baseVehicle.powerBhp,
@@ -535,13 +566,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateVehicle = async (id: string, updates: Partial<Vehicle>): Promise<boolean> => {
-    setVehicles((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, ...updates } : v))
-    );
+    const existing = vehicles.find((v) => v.id === id);
+    if (!existing) {
+      showToast('Vehicle not found.', 'error');
+      return false;
+    }
+
+    const effectiveFuelType = updates.fuelType ?? existing.fuelType;
+    const computedAvgEfficiency =
+      'actualMileage' in updates
+        ? updates.actualMileage != null && updates.actualMileage > 0
+          ? formatVehicleEfficiency(updates.actualMileage, effectiveFuelType)
+          : ''
+        : updates.avgEfficiency !== undefined
+        ? updates.avgEfficiency
+        : existing.avgEfficiency;
 
     if (isSupabaseConfigured && user) {
       try {
-        const dbUpdates: any = { updated_at: new Date().toISOString() };
+        const dbUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
         if (updates.make !== undefined) dbUpdates.make = updates.make;
         if (updates.model !== undefined) dbUpdates.model = updates.model;
         if (updates.variant !== undefined) dbUpdates.variant = updates.variant;
@@ -549,37 +592,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (updates.manufacturingYear !== undefined) dbUpdates.manufacturing_year = updates.manufacturingYear;
         if (updates.registrationYear !== undefined) dbUpdates.registration_year = updates.registrationYear;
         if (updates.regNumber !== undefined) dbUpdates.registration_number = updates.regNumber;
+        if (updates.vin !== undefined) dbUpdates.vin = updates.vin;
+        if (updates.fuelType !== undefined) dbUpdates.fuel_type = updates.fuelType;
+        if (updates.transmission !== undefined) dbUpdates.transmission = updates.transmission;
+        if (updates.bodyType !== undefined) dbUpdates.body_type = updates.bodyType;
+        if ('engineCc' in updates) dbUpdates.engine_cc = updates.engineCc ?? null;
+        if ('batteryCapacityKwh' in updates) dbUpdates.battery_capacity_kwh = updates.batteryCapacityKwh ?? null;
         if (updates.odoKm !== undefined) dbUpdates.current_odometer = updates.odoKm;
+        if ('monthlyKmDriven' in updates) dbUpdates.monthly_km_driven = updates.monthlyKmDriven ?? null;
+        if ('purchasePriceINR' in updates) dbUpdates.purchase_price = updates.purchasePriceINR ?? null;
+        if ('purchaseDate' in updates) dbUpdates.purchase_date = updates.purchaseDate || null;
+        if ('estimatedResaleValueINR' in updates) dbUpdates.estimated_resale_value = updates.estimatedResaleValueINR ?? null;
+        if ('claimedMileage' in updates) dbUpdates.claimed_mileage = updates.claimedMileage ?? null;
+        if ('actualMileage' in updates) dbUpdates.actual_mileage = updates.actualMileage ?? null;
+        if ('actualMileage' in updates || updates.avgEfficiency !== undefined || updates.fuelType !== undefined) {
+          dbUpdates.avg_efficiency = computedAvgEfficiency;
+        }
         if (updates.healthScore !== undefined) dbUpdates.health_score = updates.healthScore;
         if (updates.currentFuelPercent !== undefined) dbUpdates.current_fuel_percent = updates.currentFuelPercent;
-        if (updates.avgEfficiency !== undefined) dbUpdates.avg_efficiency = updates.avgEfficiency;
         if (updates.isPrimary !== undefined) dbUpdates.is_primary = updates.isPrimary;
         if (updates.insuranceExpiryDate !== undefined) dbUpdates.insurance_expiry_date = updates.insuranceExpiryDate;
         if (updates.pucExpiryDate !== undefined) dbUpdates.puc_expiry_date = updates.pucExpiryDate;
         if (updates.city !== undefined) dbUpdates.registration_city = updates.city;
         if (updates.state !== undefined) dbUpdates.registration_state = updates.state;
 
-        const { error } = await (supabase.from('vehicles') as any)
+        const { data, error } = await (supabase.from('vehicles') as any)
           .update(dbUpdates)
           .eq('id', id)
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .select()
+          .single();
 
-        if (error) {
+        if (error || !data) {
           console.error('[AutoSphere] Error updating vehicle in Supabase:', error);
-          showToast('Failed to update vehicle in database: ' + error.message, 'error');
+          showToast('Failed to update vehicle in database: ' + (error?.message || 'Unauthorized or record missing'), 'error');
           return false;
         }
+
+        const savedVehicle: Vehicle = {
+          ...existing,
+          ...mapDbVehicleToFrontend(data),
+        };
+        const updatedList = vehicles.map((v) => (v.id === id ? savedVehicle : v));
+        setVehicles(updatedList);
+        if (editingVehicle?.id === id) {
+          setEditingVehicle(savedVehicle);
+        }
+
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(`autosphere_vehicles_${user.id}`, JSON.stringify(updatedList));
+        }
+
+        showToast('Vehicle details updated successfully.', 'success');
+        return true;
       } catch (err: any) {
         console.error('[AutoSphere] Exception updating vehicle in Supabase:', err);
-        showToast('Error updating vehicle: ' + err.message, 'error');
+        showToast('Error updating vehicle: ' + (err.message || 'Unknown error'), 'error');
         return false;
       }
     }
 
+    const updatedVehicle: Vehicle = {
+      ...existing,
+      ...updates,
+      avgEfficiency: computedAvgEfficiency,
+    };
+    const updatedList = vehicles.map((v) => (v.id === id ? updatedVehicle : v));
+    setVehicles(updatedList);
+    if (editingVehicle?.id === id) {
+      setEditingVehicle(updatedVehicle);
+    }
+
     if (typeof localStorage !== 'undefined') {
       const storageKey = user ? `autosphere_vehicles_${user.id}` : 'autosphere_vehicles_guest';
-      const updated = vehicles.map((v) => (v.id === id ? { ...v, ...updates } : v));
-      localStorage.setItem(storageKey, JSON.stringify(updated));
+      localStorage.setItem(storageKey, JSON.stringify(updatedList));
     }
 
     showToast('Vehicle details updated successfully.', 'success');
@@ -911,6 +997,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAddVehicleOpen,
         openAddVehicle: () => setIsAddVehicleOpen(true),
         closeAddVehicle: () => setIsAddVehicleOpen(false),
+
+        isEditVehicleOpen,
+        editingVehicle,
+        openEditVehicle: (vehicle: Vehicle) => {
+          setEditingVehicle(vehicle);
+          setIsEditVehicleOpen(true);
+        },
+        closeEditVehicle: () => {
+          setIsEditVehicleOpen(false);
+          setEditingVehicle(null);
+        },
 
         isValuationOpen,
         openValuation: () => setIsValuationOpen(true),

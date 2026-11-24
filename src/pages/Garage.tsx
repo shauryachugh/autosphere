@@ -16,13 +16,15 @@ import {
   Zap, 
   Fuel, 
   Gauge, 
-  Sparkles 
+  Sparkles,
+  Pencil
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { NumberPlate } from '../components/common/NumberPlate';
 import { formatINR, formatKm, formatDate, getDaysRemaining } from '../utils/formatters';
+import { formatVehicleEfficiency, getEffectiveActualMileage } from '../utils/vehicleEconomy';
 
 export const Garage: React.FC = () => {
   const { 
@@ -32,7 +34,8 @@ export const Garage: React.FC = () => {
     isVehiclesLoading,
     vehiclesError,
     refreshVehicles,
-    openAddVehicle, 
+    openAddVehicle,
+    openEditVehicle,
     deleteVehicle, 
     documents, 
     openBookService, 
@@ -244,9 +247,28 @@ export const Garage: React.FC = () => {
                           )}
                         </div>
                         <p className="text-xs text-slate-400 truncate">{v.variant}</p>
-                        <div className="mt-1 flex items-center justify-between">
+                        <div className="mt-1 flex items-center justify-between gap-2">
                           <NumberPlate registrationNumber={v.regNumber} size="sm" isEV={isEV} />
                           <span className="text-xs font-mono text-slate-300">{formatKm(v.odoKm)}</span>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">
+                            Economy:{' '}
+                            <strong className="text-cyan-300 font-mono">
+                              {formatVehicleEfficiency(getEffectiveActualMileage(v), v.fuelType)}
+                            </strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditVehicle(v);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-dark-800 hover:bg-cyan-500/20 text-cyan-300 border border-slate-700 hover:border-cyan-500/40 transition-colors font-semibold"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Edit Vehicle
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -270,6 +292,14 @@ export const Garage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => openEditVehicle(selectedCar)}
+                        variant="secondary"
+                        size="sm"
+                        icon={<Pencil className="w-3.5 h-3.5 text-cyan-400" />}
+                      >
+                        Edit Vehicle
+                      </Button>
                       <Button
                         onClick={() => deleteVehicle(selectedCar.id)}
                         variant="danger"
@@ -324,26 +354,70 @@ export const Garage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Technical & Compliance Grid */}
+                  {/* Technical & Economy Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800">
                     <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase">Power Output</span>
-                      <span className="text-base font-bold text-white font-mono">{selectedCar.powerBhp} BHP</span>
+                      <span className="text-[10px] text-slate-400 block uppercase">Actual Mileage (User)</span>
+                      <span className="text-base font-bold text-cyan-300 font-mono">
+                        {formatVehicleEfficiency(getEffectiveActualMileage(selectedCar), selectedCar.fuelType)}
+                      </span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase">Peak Torque</span>
-                      <span className="text-base font-bold text-white font-mono">{selectedCar.torqueNm} Nm</span>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase">Efficiency</span>
-                      <span className="text-base font-bold text-cyan-300 font-mono">{selectedCar.avgEfficiency}</span>
+                      <span className="text-[10px] text-slate-400 block uppercase">Claimed Mileage (OEM)</span>
+                      <span className="text-base font-bold text-white font-mono">
+                        {formatVehicleEfficiency(selectedCar.claimedMileage, selectedCar.fuelType)}
+                      </span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
                       <span className="text-[10px] text-slate-400 block uppercase">Odometer</span>
                       <span className="text-base font-bold text-white font-mono">{formatKm(selectedCar.odoKm)}</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block uppercase">Monthly Usage</span>
+                      <span className="text-base font-bold text-white font-mono">
+                        {selectedCar.monthlyKmDriven != null ? `${selectedCar.monthlyKmDriven.toLocaleString('en-IN')} km/mo` : 'Not set'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block uppercase">Transmission</span>
+                      <span className="text-sm font-bold text-white uppercase">{selectedCar.transmission}</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block uppercase">
+                        {selectedCar.fuelType === 'electric' ? 'Battery Capacity' : 'Engine Capacity'}
+                      </span>
+                      <span className="text-sm font-bold text-white font-mono">
+                        {selectedCar.fuelType === 'electric'
+                          ? selectedCar.batteryCapacityKwh
+                            ? `${selectedCar.batteryCapacityKwh} kWh`
+                            : 'Not set'
+                          : selectedCar.engineCc
+                          ? `${selectedCar.engineCc} cc`
+                          : 'Not set'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block uppercase">Purchase Price</span>
+                      <span className="text-sm font-bold text-white font-mono">
+                        {selectedCar.purchasePriceINR && selectedCar.purchasePriceINR > 0
+                          ? formatINR(selectedCar.purchasePriceINR)
+                          : 'Not set'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-dark-850 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block uppercase">Est. Resale Value</span>
+                      <span className="text-sm font-bold text-emerald-400 font-mono">
+                        {selectedCar.estimatedResaleValueINR && selectedCar.estimatedResaleValueINR > 0
+                          ? formatINR(selectedCar.estimatedResaleValueINR)
+                          : 'Not set'}
+                      </span>
                     </div>
                   </div>
 

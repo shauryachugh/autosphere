@@ -25,7 +25,8 @@ import {
   Clock,
   Check,
   ShoppingBag,
-  Tag
+  Tag,
+  Pencil
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -33,6 +34,11 @@ import { Badge } from '../components/common/Badge';
 import { StatCard } from '../components/common/StatCard';
 import { NumberPlate } from '../components/common/NumberPlate';
 import { formatINR, formatKm, formatDate } from '../utils/formatters';
+import {
+  calculateGarageEconomyAverages,
+  formatVehicleEfficiency,
+  getEffectiveActualMileage,
+} from '../utils/vehicleEconomy';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { healthPassportService } from '../services/healthPassportService';
@@ -51,6 +57,7 @@ export const Dashboard: React.FC = () => {
     openBookService, 
     openValuation,
     openAddVehicle,
+    openEditVehicle,
     userProfile,
     isVehiclesLoading
   } = useApp();
@@ -202,6 +209,14 @@ export const Dashboard: React.FC = () => {
             </Button>
           </Link>
           <Button
+            onClick={() => openEditVehicle(activeVehicle)}
+            variant="outline"
+            size="sm"
+            icon={<Pencil className="w-4 h-4 text-cyan-400" />}
+          >
+            Edit Vehicle
+          </Button>
+          <Button
             onClick={openValuation}
             variant="outline"
             size="sm"
@@ -347,17 +362,26 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Metric 4: Real-World Efficiency */}
+            {/* Metric 4: Real-World & Claimed Efficiency */}
             <div className="p-3.5 rounded-xl bg-dark-900 border border-slate-800">
               <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                <span>Avg Efficiency</span>
-                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Vehicle Economy</span>
+                <button
+                  type="button"
+                  onClick={() => openEditVehicle(activeVehicle)}
+                  className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1"
+                >
+                  <Pencil className="w-3 h-3" /> Edit
+                </button>
               </div>
               <div className="text-lg sm:text-xl font-bold text-white font-mono">
-                {activeVehicle.avgEfficiency}
+                {formatVehicleEfficiency(getEffectiveActualMileage(activeVehicle), activeVehicle.fuelType)}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">
-                Last calculated over 450 km
+                User-reported • OEM:{' '}
+                <strong className="text-slate-300">
+                  {formatVehicleEfficiency(activeVehicle.claimedMileage, activeVehicle.fuelType)}
+                </strong>
               </span>
             </div>
 
@@ -425,17 +449,151 @@ export const Dashboard: React.FC = () => {
         <StatCard
           title="Resale Fair Market Value"
           value={formatINR(
-            activeVehicle.purchasePriceINR
+            activeVehicle.estimatedResaleValueINR && activeVehicle.estimatedResaleValueINR > 0
+              ? activeVehicle.estimatedResaleValueINR
+              : activeVehicle.purchasePriceINR
               ? Math.round(activeVehicle.purchasePriceINR * Math.max(0.4, 1 - (2026 - (activeVehicle.year || 2023)) * 0.1))
               : (activeVehicle.odoKm ? Math.max(300000, 1500000 - activeVehicle.odoKm * 10) : 1000000)
           )}
           subtitle={`${activeVehicle.city || 'Regional'} verified market`}
           icon={<TrendingUp className="w-5 h-5" />}
-          trend={{ value: 'Market Ready', isPositive: true }}
+          trend={{ value: activeVehicle.estimatedResaleValueINR ? 'User Est.' : 'Market Ready', isPositive: true }}
           accentColor="emerald"
           onClick={openValuation}
         />
       </div>
+
+      {/* Live Garage Vehicle Economy Section */}
+      {(() => {
+        const economyAverages = calculateGarageEconomyAverages(vehicles);
+        return (
+          <Card
+            header={
+              <div className="flex items-center gap-2">
+                <Fuel className="w-4 h-4 text-cyan-400" />
+                <span>Vehicle Economy</span>
+                <Badge variant="electric" size="xs">
+                  Live Garage Figures
+                </Badge>
+              </div>
+            }
+            actions={
+              <Link
+                to="/garage"
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+              >
+                Manage Garage <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            }
+          >
+            <div className="space-y-4">
+              {/* Unit-Separated Garage Averages (Excludes vehicles without economy data) */}
+              {economyAverages.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {economyAverages.map((group) => (
+                    <div
+                      key={group.unit}
+                      className="p-3.5 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between"
+                    >
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">
+                          Garage Avg ({group.label})
+                        </span>
+                        <span className="text-lg font-extrabold text-cyan-300 font-mono">
+                          {group.average} {group.unit}
+                        </span>
+                      </div>
+                      <Badge variant="neutral" size="xs">
+                        {group.vehicleCount} {group.vehicleCount === 1 ? 'vehicle' : 'vehicles'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-dark-850 border border-dashed border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span>
+                    No economy figures recorded yet. Vehicles without economy data are excluded from garage averages.
+                  </span>
+                  <Button
+                    onClick={() => openEditVehicle(activeVehicle)}
+                    variant="outline"
+                    size="sm"
+                    icon={<Pencil className="w-3.5 h-3.5 text-cyan-400" />}
+                  >
+                    Add Economy Figures
+                  </Button>
+                </div>
+              )}
+
+              {/* Per-Vehicle Economy Breakdown */}
+              <div className="divide-y divide-slate-800">
+                {vehicles.map((v) => {
+                  const actualVal = getEffectiveActualMileage(v);
+                  const vehicleIsEV = v.fuelType === 'electric';
+                  return (
+                    <div
+                      key={v.id}
+                      className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 rounded-lg bg-dark-800 border border-slate-700 shrink-0">
+                          {vehicleIsEV ? (
+                            <Zap className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <Fuel className="w-4 h-4 text-cyan-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-white truncate">
+                              {v.make} {v.model} ({v.year})
+                            </span>
+                            <Badge variant={vehicleIsEV ? 'success' : 'info'} size="xs">
+                              {v.fuelType.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {v.variant} • <span className="font-mono">{v.regNumber}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                        <div className="text-left sm:text-right">
+                          <span className="text-[10px] uppercase text-slate-400 block">
+                            User-Reported Actual
+                          </span>
+                          <span className="text-xs font-bold font-mono text-cyan-300">
+                            {formatVehicleEfficiency(actualVal, v.fuelType)}
+                          </span>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <span className="text-[10px] uppercase text-slate-400 block">
+                            Manufacturer-Claimed
+                          </span>
+                          <span className="text-xs font-bold font-mono text-slate-200">
+                            {formatVehicleEfficiency(v.claimedMileage, v.fuelType)}
+                          </span>
+                        </div>
+
+                        <Button
+                          onClick={() => openEditVehicle(v)}
+                          variant="secondary"
+                          size="sm"
+                          icon={<Pencil className="w-3.5 h-3.5 text-cyan-400" />}
+                        >
+                          Edit Vehicle
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Middle Row: Recent Maintenance Activity & Vehicle Health Quick View */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
