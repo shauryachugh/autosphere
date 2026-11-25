@@ -133,14 +133,14 @@ export const SearchableRtoSelect: React.FC<SearchableRtoSelectProps> = ({
                         <span className="px-1.5 py-0.5 rounded bg-dark-850 border border-slate-700 text-[10px] font-bold text-slate-300">
                           {rto.officeType}
                         </span>
-                        {rto.verificationStatus === 'needs_verification' && (
+                        {rto.verificationStatus === 'Pending Official Verification' && (
                           <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-[10px] font-medium text-amber-300 flex items-center gap-1">
-                            <AlertCircle className="w-2.5 h-2.5" /> Needs Verification
+                            <AlertCircle className="w-2.5 h-2.5" /> Pending Official Verification
                           </span>
                         )}
                       </div>
                       <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                        Jurisdiction: {rto.districtOrCity}, {rto.stateName}
+                        {rto.districtOrCity}, {rto.stateName}
                       </p>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-cyan-400 shrink-0" />}

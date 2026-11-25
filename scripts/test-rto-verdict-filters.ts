@@ -27,11 +27,24 @@ console.log('===================================================================
 const rjCodes = RAJASTHAN_RTO_OFFICES.map((r) => r.code);
 const uniqueCodes = new Set(rjCodes);
 assert(rjCodes.length === uniqueCodes.size, `Zero duplicate Rajasthan RTO codes (${rjCodes.length} unique records)`);
-assert(rjCodes.length >= 60, `Includes older RJ01-RJ38 and newer allocations up to RJ60+ (Total: ${rjCodes.length})`);
-assert(Boolean(findRtoByCode('RJ14') && findRtoByCode('RJ45') && findRtoByCode('RJ60')), 'Includes Jaipur multiple RTO allocations (RJ14, RJ45, RJ60)');
-assert(Boolean(findRtoByCode('RJ55')?.districtOrCity.includes('Pokhran')), 'RJ55 maps to Pokhran (Jaisalmer)');
+assert(rjCodes.length === 58, `Includes RJ-01 through RJ-58 (${rjCodes.length} records)`);
+
+const rj14 = findRtoByCode('RJ14');
+const rj45 = findRtoByCode('RJ45');
+assert(
+  Boolean(rj14 && rj45 && rj14.officeName.includes('Jaipur South') && rj45.officeName.includes('Jaipur North')),
+  'Jaipur South (RJ-14) and Jaipur North (RJ-45) exist as separate options'
+);
+assert(
+  RAJASTHAN_RTO_OFFICES.slice(0, 45).every((r) => r.verificationStatus === 'Verified'),
+  'RJ-01 through RJ-45 are marked Verified'
+);
+assert(
+  RAJASTHAN_RTO_OFFICES.slice(45).every((r) => r.verificationStatus === 'Pending Official Verification'),
+  'RJ-46 through RJ-58 are marked Pending Official Verification'
+);
+assert(Boolean(findRtoByCode('RJ55')?.districtOrCity.includes('Pokhran')), 'RJ55 maps to Pokhran');
 assert(Boolean(findRtoByCode('RJ58')?.districtOrCity.includes('Salumber')), 'RJ58 maps to Salumber');
-assert(findRtoByCode('RJ61')?.verificationStatus === 'needs_verification', 'Uncertain newer code RJ61 marked as needs_verification');
 
 const onlyRj = getRtosForState('Rajasthan');
 assert(onlyRj.every((r) => r.stateId === 'RJ'), 'Selecting Rajasthan returns Rajasthan RTOs only');
