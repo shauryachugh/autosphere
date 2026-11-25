@@ -157,7 +157,7 @@ class AutomotiveService {
         marketStatus: 'active',
         availableFuelTypes: [variant.fuelType],
         availableTransmissions: [variant.transmission],
-        imageUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+        imageUrl: '',
         description: 'Indian passenger automobile specification.',
         isActive: true,
       };

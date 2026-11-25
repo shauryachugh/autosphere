@@ -9,7 +9,6 @@ import {
   Warehouse, 
   Activity, 
   Bot, 
-  CarFront, 
   ShoppingBag, 
   Settings, 
   ChevronLeft, 
@@ -27,6 +26,7 @@ import {
 } from 'lucide-react';
 import { NumberPlate } from '../common/NumberPlate';
 import { Badge } from '../common/Badge';
+import { VehicleImage } from '../common/VehicleImage';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -133,15 +133,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'AutoSphere AI',
       path: '/ai-assistant',
       icon: <Bot className="w-5 h-5 shrink-0" />,
-      badge: 'Gemini',
-      badgeVariant: 'purple' as const,
-    },
-    {
-      name: 'Buy & Sell',
-      path: '/buy-sell',
-      icon: <CarFront className="w-5 h-5 shrink-0" />,
-      badge: 'TruePrice',
-      badgeVariant: 'electric' as const,
     },
     {
       name: 'Accessories Hub',
@@ -227,10 +218,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="p-2.5 rounded-xl bg-dark-850 border border-slate-700/60 hover:border-cyan-500/40 cursor-pointer transition-all flex items-center justify-between group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={activeVehicle.image}
-                        alt={activeVehicle.model}
-                        className="w-10 h-10 rounded-lg object-cover border border-slate-700 shrink-0"
+                      <VehicleImage
+                        make={activeVehicle.make}
+                        model={activeVehicle.model}
+                        image={activeVehicle.image}
+                        fuelType={activeVehicle.fuelType}
+                        bodyType={activeVehicle.bodyType}
+                        className="w-10 h-10 rounded-lg shrink-0"
                       />
                       <div className="min-w-0 flex flex-col">
                         <div className="flex items-center gap-1.5">
@@ -317,10 +311,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="flex flex-col items-center justify-center p-2 rounded-xl bg-dark-850 hover:bg-dark-800 cursor-pointer border border-slate-700/60"
                   title={`${activeVehicle.make} ${activeVehicle.model} (${activeVehicle.regNumber})`}
                 >
-                  <img
-                    src={activeVehicle.image}
-                    alt={activeVehicle.model}
-                    className="w-8 h-8 rounded-md object-cover border border-slate-700"
+                  <VehicleImage
+                    make={activeVehicle.make}
+                    model={activeVehicle.model}
+                    image={activeVehicle.image}
+                    fuelType={activeVehicle.fuelType}
+                    bodyType={activeVehicle.bodyType}
+                    className="w-8 h-8 rounded-md"
                   />
                 </div>
               ) : (

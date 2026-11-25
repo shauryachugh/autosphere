@@ -25,6 +25,7 @@ import { NumberPlate } from '../components/common/NumberPlate';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { VehicleImage } from '../components/common/VehicleImage';
 import { formatINR, formatKm, formatDate } from '../utils/formatters';
 import { healthPassportService } from '../services/healthPassportService';
 import { VehiclePassportData } from '../types/passport.types';
@@ -314,14 +315,19 @@ export const VehiclePassport: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {passport.photos.map((photoUrl, idx) => (
+              {(passport.photos && passport.photos.length > 0 ? passport.photos : [activeVehicle.image || '']).map((photoUrl, idx) => (
                 <div key={idx} className="relative h-44 rounded-2xl overflow-hidden border border-carbon-700/60 group">
-                  <img
-                    src={photoUrl}
+                  <VehicleImage
+                    make={passport.make}
+                    model={passport.model}
+                    image={photoUrl}
+                    fuelType={passport.fuelType}
+                    bodyType={passport.bodyType}
                     alt={`${passport.make} ${passport.model} photo ${idx + 1}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full border-0 rounded-none"
+                    imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3 pointer-events-none">
                     <span className="text-[11px] text-white font-medium">Photo #{idx + 1}</span>
                   </div>
                 </div>

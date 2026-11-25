@@ -26,7 +26,7 @@ import {
   AccessoryItem,
   AccessoryCategory,
   AccessoryFilterCriteria,
-} from '../types/buysell.types';
+} from '../types/accessories.types';
 import { accessoriesService } from '../services/accessoriesService';
 
 export const AccessoriesHub: React.FC = () => {

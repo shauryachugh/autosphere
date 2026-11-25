@@ -18,6 +18,7 @@ import {
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
+import { VehicleImage } from '../common/VehicleImage';
 import { formatINR, formatLakhsCrores } from '../../utils/formatters';
 import { ReplacementCarTCO, CurrentCarTCO } from '../../types/replacement.types';
 
@@ -169,12 +170,16 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
               <div>
                 {/* Photo & Badge Banner */}
                 <div className="relative aspect-[16/9] max-h-56 overflow-hidden">
-                  <img
-                    src={item.car.imageUrl}
-                    alt={item.car.model}
-                    className="w-full h-full object-cover"
+                  <VehicleImage
+                    make={item.car.make}
+                    model={item.car.model}
+                    image={item.car.imageUrl}
+                    fuelType={item.car.fuelType}
+                    bodyType={item.car.bodyType}
+                    className="w-full h-full border-0 rounded-none"
+                    imgClassName="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/30 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/30 to-transparent pointer-events-none" />
 
                   <div className="absolute top-3 left-3 flex items-center gap-2">
                     <Badge variant="electric" size="sm">

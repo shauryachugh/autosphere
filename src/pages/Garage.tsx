@@ -23,6 +23,7 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { NumberPlate } from '../components/common/NumberPlate';
+import { VehicleImage } from '../components/common/VehicleImage';
 import { formatINR, formatKm, formatDate, getDaysRemaining } from '../utils/formatters';
 import { formatVehicleEfficiency, getEffectiveActualMileage } from '../utils/vehicleEconomy';
 
@@ -230,10 +231,14 @@ export const Garage: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <img
-                        src={v.image}
-                        alt={v.model}
-                        className="w-16 h-14 rounded-lg object-cover border border-slate-700 shrink-0"
+                      <VehicleImage
+                        make={v.make}
+                        model={v.model}
+                        image={v.image}
+                        fuelType={v.fuelType}
+                        bodyType={v.bodyType}
+                        alt={`${v.make} ${v.model}`}
+                        className="w-16 h-14 rounded-lg shrink-0"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">
@@ -315,11 +320,26 @@ export const Garage: React.FC = () => {
                 <div className="space-y-6">
                   {/* Photo & Specs Banner */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                    <img
-                      src={selectedCar.image}
-                      alt={selectedCar.model}
-                      className="rounded-xl w-full h-48 object-cover border border-slate-700"
-                    />
+                    <div className="relative group">
+                      <VehicleImage
+                        make={selectedCar.make}
+                        model={selectedCar.model}
+                        image={selectedCar.image}
+                        fuelType={selectedCar.fuelType}
+                        bodyType={selectedCar.bodyType}
+                        alt={`${selectedCar.make} ${selectedCar.model}`}
+                        showSourceBadge
+                        className="rounded-xl w-full h-48"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => openEditVehicle(selectedCar)}
+                        className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-dark-950/85 hover:bg-cyan-500/20 text-xs font-semibold text-cyan-300 border border-slate-700 hover:border-cyan-500/50 backdrop-blur-sm transition-colors flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Change Photo
+                      </button>
+                    </div>
 
                     <div className="space-y-3">
                       <div>

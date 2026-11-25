@@ -6,7 +6,7 @@ import {
   AccessoryItem,
   AccessoryCategory,
   AccessoryFilterCriteria,
-} from '../types/buysell.types';
+} from '../types/accessories.types';
 
 export const SEED_ACCESSORIES: AccessoryItem[] = [
   // 1. INTERIOR ACCESSORIES

@@ -50,8 +50,7 @@ import { ALL_INDIAN_STATES, ALL_INDIAN_CITIES } from '../src/data/locationsData'
 import { healthPassportService } from '../src/services/healthPassportService';
 import { generateAutomotiveFallbackResponse } from '../src/services/aiFallbackService';
 import { synthesizeVehicleContext } from '../src/services/aiContextService';
-import { usedCarPriceService } from '../src/services/usedCarPriceService';
-import { usedCarListingService } from '../src/services/usedCarListingService';
+import { getCatalogueImageEntry, resolveVehicleImage } from '../src/services/vehicleImageService';
 import { accessoriesService } from '../src/services/accessoriesService';
 import { handler as geminiHandler } from '../netlify/functions/gemini-chat';
 import { CurrentVehicleAnalysis, ReplacementRequirements } from '../src/types/replacement.types';
@@ -425,80 +424,25 @@ async function runMasterTestSuite() {
   assert(aiCtx.vehicle?.make === 'Mahindra' && aiCtx.vehicle?.model === 'XUV700', 'Telemetry context correctly assembled from garage vehicle state');
 
   // ============================================================================
-  // TEST SUITE 6: BUY SMART, SELL YOUR CAR & TRUEPRICE™ ENGINE (PHASE 7)
+  // TEST SUITE 6: CENTRALIZED VEHICLE IMAGE SERVICE & CATALOGUE PHOTOS
   // ============================================================================
-  console.log('\n--- [6/7] BUY/SELL INTELLIGENCE & TRUEPRICE™ VALUATION ---');
+  console.log('\n--- [6/7] CENTRALIZED VEHICLE IMAGE SERVICE & CATALOGUE PHOTOS ---');
 
-  // Test TruePrice™ Valuation Algorithm
-  const valuationInput = {
+  const cretaEntry = getCatalogueImageEntry('Hyundai', 'Creta');
+  assert(Boolean(cretaEntry && cretaEntry.url.includes('wikimedia.org')), 'Hyundai Creta resolves to verified Wikimedia Commons photo');
+
+  const nexonEvResolved = resolveVehicleImage({ make: 'Tata Motors', model: 'Nexon.ev', fuelType: 'electric' });
+  assert(Boolean(nexonEvResolved.url && !nexonEvResolved.isPersonalPhoto), 'Nexon.ev resolves to Tata Nexon catalogue photo');
+
+  const personalResolved = resolveVehicleImage({
     make: 'Hyundai',
     model: 'Creta',
-    variant: 'SX (O) 1.5 CRDi',
-    year: 2022,
-    fuelType: 'diesel' as const,
-    transmission: 'automatic' as const,
-    odometerKm: 35000,
-    ownershipCount: 1,
-    condition: 'good' as const,
-    city: 'Bengaluru',
-    askingPriceINR: 1450000,
-  };
-
-  const truePriceResult = usedCarPriceService.estimatePrice(valuationInput);
-  assert(Boolean(truePriceResult), 'TruePrice™ valuation completed');
-  assert(truePriceResult.estimatedPriceINR > 500000 && truePriceResult.estimatedPriceINR < 2000000, `Realistic valuation range generated for 2022 Creta Diesel (Calculated: ₹${truePriceResult.estimatedPriceINR.toLocaleString('en-IN')})`);
-  assert(truePriceResult.priceRangeMinINR < truePriceResult.estimatedPriceINR && truePriceResult.priceRangeMaxINR > truePriceResult.estimatedPriceINR, 'Confidence interval encompasses fair price');
-  assert(['high', 'medium', 'low'].includes(truePriceResult.confidenceLevel), `Valuation confidence factor assigned (${truePriceResult.confidenceLevel})`);
-
-  // Test Marketplace Listings Filtering and Search
-  const initialListings = await usedCarListingService.getListings({});
-  assert(Array.isArray(initialListings), `Marketplace listings service active (Initial real listings count: ${initialListings.length})`);
-
-  // Test listing creation
-  const createdListing = await usedCarListingService.createListing({
-    userId: 'user-test-seller',
-    title: '2023 Tata Nexon EV Max - Mint Condition',
-    make: 'Tata',
-    model: 'Nexon EV',
-    variant: 'Max Empowered',
-    manufacturingYear: 2023,
-    registrationYear: 2023,
-    fuelType: 'electric',
-    transmission: 'automatic',
-    odometerKm: 18000,
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    ownershipCount: 1,
-    askingPriceINR: 1350000,
-    vehicleCondition: 'excellent',
-    description: 'Single owner, home charged on 3.3 kW AC charger. Zero accidents.',
-    features: ['Sunroof', 'Ventilated Seats', 'Wireless Android Auto', 'Air Purifier'],
-    photos: [],
-    status: 'active',
-    isVerified: true,
-    serviceHistoryAvailable: true,
+    image: 'https://my-bucket.supabase.co/storage/v1/object/sign/vehicle-photos/u1/v1/mycar.jpg',
   });
-  assert(Boolean(createdListing && createdListing.id), 'Used car listing created with masked details');
+  assert(personalResolved.isPersonalPhoto === true, 'Personal vehicle photo takes precedence over catalogue image');
 
-  // Test Safe Buyer-Seller Enquiry Workflow
-  const enquiry = await usedCarListingService.sendEnquiry({
-    listingId: createdListing.id,
-    buyerId: 'user-test-buyer',
-    buyerName: 'Arjun Menon',
-    sellerId: createdListing.userId,
-    message: 'Hello, is the battery warranty transferable? Can I schedule an inspection this weekend?',
-    offeredPriceINR: 1300000,
-  });
-  assert(Boolean(enquiry && enquiry.id), 'Safe buyer-seller enquiry submitted without revealing seller private contact');
-
-  // Test Enquiry Response
-  await usedCarListingService.respondToEnquiry(
-    enquiry.id,
-    'Yes, Tata warranty is 8 yrs / 1.6 Lakh km and 100% transferable. Sunday 11 AM works for inspection.'
-  );
-  const mySent = await usedCarListingService.getMySentEnquiries(enquiry.buyerId);
-  const updatedEnquiry = mySent.find(e => e.id === enquiry.id);
-  assert(updatedEnquiry?.status === 'responded', 'Seller response logged with status updated to responded');
+  const fallbackResolved = resolveVehicleImage({ make: 'UnknownMake', model: 'ConceptCar' });
+  assert(fallbackResolved.url === null && fallbackResolved.sourceLabel === 'Model Placeholder', 'Unknown model cleanly falls back to Model Placeholder');
 
   // ============================================================================
   // TEST SUITE 7: ACCESSORIES HUB & COMPATIBILITY ENGINE (PHASE 7)

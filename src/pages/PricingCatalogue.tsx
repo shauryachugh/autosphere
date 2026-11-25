@@ -21,6 +21,7 @@ import { INDIAN_CAR_VARIANTS } from '../data/variantsData';
 import { ALL_INDIAN_STATES, ALL_INDIAN_CITIES } from '../data/locationsData';
 import { SearchableLocationSelect } from '../components/common/SearchableLocationSelect';
 import { OnRoadPriceModal } from '../components/pricing/OnRoadPriceModal';
+import { VehicleImage } from '../components/common/VehicleImage';
 import { calculateOnRoadPrice } from '../utils/pricingEngine';
 import { calculateLocationRunningCostPerKm } from '../data/fuelTariffsData';
 import { CarVariant, IndianCity, IndianState } from '../types/automotive.types';
@@ -241,12 +242,17 @@ export const PricingCatalogue: React.FC = () => {
               >
                 {/* Image Cover */}
                 <div className="relative h-48 overflow-hidden bg-carbon-950">
-                  <img
-                    src={model.imageUrl}
+                  <VehicleImage
+                    make={manufacturer.name}
+                    model={model.name}
+                    image={model.imageUrl}
+                    fuelType={variant.fuelType}
+                    bodyType={model.category}
                     alt={cardTitle}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full border-0 rounded-none"
+                    imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-carbon-900 via-transparent to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-carbon-900 via-transparent to-transparent pointer-events-none" />
 
                   {/* Fuel Badge */}
                   <div className="absolute top-3 left-3 flex gap-2">

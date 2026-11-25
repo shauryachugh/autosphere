@@ -72,9 +72,9 @@ const categories = new Set(INDIAN_CAR_MODELS.map(m => m.category));
 });
 
 const allModelsHaveLaunchAndStatus = INDIAN_CAR_MODELS.every(
-  m => m.launchYear >= 1990 && m.marketStatus === 'active' && m.availableFuelTypes.length > 0 && m.imageUrl
+  m => m.launchYear >= 1990 && m.marketStatus === 'active' && m.availableFuelTypes.length > 0 && typeof m.imageUrl === 'string'
 );
-assert(allModelsHaveLaunchAndStatus, 'Every model has valid launch year, active status, fuels, and images');
+assert(allModelsHaveLaunchAndStatus, 'Every model has valid launch year, active status, fuels, and image field');
 
 // ------------------------------------------------------------------------
 // MODULE 3: VARIANT DATABASE TESTS

@@ -12,7 +12,6 @@ import { CostIntelligence } from './pages/CostIntelligence';
 import { Garage } from './pages/Garage';
 import { VehicleHealth } from './pages/VehicleHealth';
 import { AICoPilot } from './pages/AICoPilot';
-import { BuyAndSell } from './pages/BuyAndSell';
 import { AccessoriesHub } from './pages/AccessoriesHub';
 import { ProfileSettings } from './pages/ProfileSettings';
 import { PricingCatalogue } from './pages/PricingCatalogue';
@@ -53,7 +52,6 @@ export const App: React.FC = () => {
                 <Route path="/timeline" element={<MaintenanceTimeline />} />
                 <Route path="/reminders" element={<RemindersCenter />} />
                 <Route path="/ai-assistant" element={<AICoPilot />} />
-                <Route path="/buy-sell" element={<BuyAndSell />} />
                 <Route path="/accessories" element={<AccessoriesHub />} />
                 <Route path="/settings" element={<ProfileSettings />} />
               </Route>

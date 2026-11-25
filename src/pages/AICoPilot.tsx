@@ -135,9 +135,6 @@ export const AICoPilot: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
                 AutoSphere AI
-                <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">
-                  Gemini API Co-Pilot
-                </span>
               </h1>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">

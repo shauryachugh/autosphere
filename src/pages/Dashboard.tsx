@@ -33,6 +33,7 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { StatCard } from '../components/common/StatCard';
 import { NumberPlate } from '../components/common/NumberPlate';
+import { VehicleImage } from '../components/common/VehicleImage';
 import { formatINR, formatKm, formatDate } from '../utils/formatters';
 import {
   calculateGarageEconomyAverages,
@@ -269,12 +270,17 @@ export const Dashboard: React.FC = () => {
 
             {/* Vehicle Photo with glowing border */}
             <div className="relative rounded-xl overflow-hidden border border-slate-700/80 aspect-video max-h-52 group">
-              <img
-                src={activeVehicle.image}
+              <VehicleImage
+                make={activeVehicle.make}
+                model={activeVehicle.model}
+                image={activeVehicle.image}
+                fuelType={activeVehicle.fuelType}
+                bodyType={activeVehicle.bodyType}
                 alt={`${activeVehicle.make} ${activeVehicle.model}`}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                className="w-full h-full border-0 rounded-none"
+                imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-dark-950/80 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-dark-950/80 via-transparent to-transparent pointer-events-none" />
               
               <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-xs px-2 py-1 rounded-lg bg-dark-950/80 backdrop-blur-md border border-slate-800">
                 <span className="text-slate-300 flex items-center gap-1.5 text-[11px]">
@@ -829,92 +835,41 @@ export const Dashboard: React.FC = () => {
         </div>
       </Card>
 
-      {/* Buy & Sell Intelligence & Compatible Accessories (Phase 7 Integration) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Buy & Sell Intelligence Card */}
-        <Card
-          header={
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-cyan-400" />
-              <span>Buy & Sell Intelligence Spotlight</span>
-            </div>
-          }
-          actions={
-            <Link
-              to="/buy-sell"
-              className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
-            >
-              Explore Buy Smart <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          }
-        >
-          <div className="space-y-3">
-            <div className="p-3.5 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-                  Algorithmic Valuation Engine
-                </span>
-                <h4 className="text-xs font-bold text-white">
-                  Sell your {activeVehicle.make} {activeVehicle.model} with TruePrice™
-                </h4>
-                <p className="text-[11px] text-slate-400">
-                  Instant transparent price quote based on regional RTO data in {activeVehicle.city}.
-                </p>
-              </div>
-              <Link to="/buy-sell">
-                <Button variant="primary" size="sm" icon={<Tag className="w-3.5 h-3.5" />}>
-                  List Car
-                </Button>
-              </Link>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between text-xs text-slate-400">
-              <span>Verified pre-owned cars in {activeVehicle.city}:</span>
-              <Link to="/buy-sell" className="text-cyan-400 hover:underline font-semibold">
-                Browse Pre-Owned Deals →
-              </Link>
-            </div>
+      {/* Tailored Accessories Card */}
+      <Card
+        header={
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4 text-cyan-400" />
+            <span>Accessories Matched to Your Garage</span>
           </div>
-        </Card>
-
-        {/* Tailored Accessories Card */}
-        <Card
-          header={
-            <div className="flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-cyan-400" />
-              <span>Accessories Matched to Your Garage</span>
-            </div>
-          }
-          actions={
-            <Link
-              to="/accessories"
-              className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
-            >
-              All Accessories <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          }
-        >
-          <div className="space-y-3">
-            <div className="p-4 rounded-xl bg-dark-850 border border-slate-800 text-center space-y-2">
-              <p className="text-xs text-slate-300">
-                Explore OEM & verified compatible accessories for your {activeVehicle.make} {activeVehicle.model}.
+        }
+        actions={
+          <Link
+            to="/accessories"
+            className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+          >
+            All Accessories <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        }
+      >
+        <div className="space-y-3">
+          <div className="p-4 rounded-xl bg-dark-850 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-white">
+                OEM & Verified Compatible Accessories
               </p>
-              <Link to="/accessories">
-                <Button variant="outline" size="sm" className="text-cyan-400 border-cyan-500/30">
-                  Browse Compatible Accessories
-                </Button>
-              </Link>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Explore curated interior, safety, dashcam, and EV charging accessories matched to your {activeVehicle.make} {activeVehicle.model}.
+              </p>
             </div>
-
-            <div className="pt-1 flex items-center justify-between text-xs text-slate-400">
-              <span>Looking for dashcams or EV wallboxes?</span>
-              <Link to="/accessories" className="text-cyan-400 hover:underline font-semibold">
-                View Curated Hub →
-              </Link>
-            </div>
+            <Link to="/accessories" className="shrink-0">
+              <Button variant="outline" size="sm" className="text-cyan-400 border-cyan-500/30">
+                Browse Compatible Accessories
+              </Button>
+            </Link>
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 };

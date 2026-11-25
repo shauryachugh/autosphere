@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   X,
   Car,
@@ -11,11 +12,19 @@ import {
   Zap,
   IndianRupee,
   Calendar,
+  Camera,
+  Upload,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { FuelType, TransmissionType, Vehicle } from '../../types';
 import { SearchableLocationSelect } from '../common/SearchableLocationSelect';
+import { VehicleImage } from '../common/VehicleImage';
 import { getEfficiencyUnit, getEffectiveActualMileage } from '../../utils/vehicleEconomy';
+import {
+  getCatalogueImageEntry,
+  uploadPersonalVehiclePhoto,
+} from '../../services/vehicleImageService';
 
 interface EditFormState {
   make: string;
@@ -35,6 +44,7 @@ interface EditFormState {
   purchaseDate: string;
   purchasePriceINR: string;
   estimatedResaleValueINR: string;
+  image: string;
 }
 
 function buildInitialFormState(v: Vehicle): EditFormState {
@@ -66,6 +76,7 @@ function buildInitialFormState(v: Vehicle): EditFormState {
       v.estimatedResaleValueINR != null && v.estimatedResaleValueINR > 0
         ? v.estimatedResaleValueINR.toString()
         : '',
+    image: v.image || '',
   };
 }
 
@@ -98,14 +109,17 @@ function parseOptionalNonNegativeNumber(
 }
 
 export const EditVehicleModal: React.FC = () => {
-  const { isEditVehicleOpen, editingVehicle, closeEditVehicle, updateVehicle } = useApp();
+  const { user } = useAuth();
+  const { isEditVehicleOpen, editingVehicle, closeEditVehicle, updateVehicle, showToast } = useApp();
 
   const [form, setForm] = useState<EditFormState | null>(null);
   const [initialForm, setInitialForm] = useState<EditFormState | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isEditVehicleOpen && editingVehicle) {
@@ -259,6 +273,7 @@ export const EditVehicleModal: React.FC = () => {
         purchaseDate: form.purchaseDate.trim() || undefined,
         purchasePriceINR,
         estimatedResaleValueINR,
+        image: form.image,
       });
 
       if (ok) {
@@ -341,6 +356,88 @@ export const EditVehicleModal: React.FC = () => {
               <span>{submitError}</span>
             </div>
           )}
+
+          {/* Section 0: Vehicle Photograph */}
+          <div className="p-4 rounded-xl bg-dark-850 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" />
+                Vehicle Photograph
+              </h3>
+              <span className="text-[11px] text-slate-400">
+                JPG, PNG, or WebP (max 5 MB)
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <VehicleImage
+                make={form.make}
+                model={form.model}
+                image={form.image}
+                fuelType={form.fuelType}
+                bodyType={editingVehicle.bodyType}
+                showSourceBadge
+                className="w-full sm:w-48 h-28 rounded-xl shrink-0"
+              />
+
+              <div className="flex-1 flex flex-col gap-2 w-full">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !editingVehicle) return;
+                    setIsUploadingPhoto(true);
+                    try {
+                      const uploaded = await uploadPersonalVehiclePhoto(
+                        user?.id || 'offline-user',
+                        editingVehicle.id,
+                        file
+                      );
+                      handleFieldChange('image', uploaded.url);
+                      showToast('Personal vehicle photo uploaded. Click Save Changes to persist.', 'info');
+                    } catch (err: any) {
+                      showToast(err?.message || 'Failed to upload vehicle photo.', 'error');
+                    } finally {
+                      setIsUploadingPhoto(false);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }
+                  }}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    isLoading={isUploadingPhoto}
+                    disabled={isUploadingPhoto || isSaving}
+                    onClick={() => fileInputRef.current?.click()}
+                    icon={!isUploadingPhoto ? <Upload className="w-3.5 h-3.5 text-cyan-400" /> : undefined}
+                  >
+                    {isUploadingPhoto ? 'Uploading...' : 'Upload Personal Photo'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isUploadingPhoto || isSaving}
+                    onClick={() => {
+                      const catEntry = getCatalogueImageEntry(form.make, form.model);
+                      handleFieldChange('image', catEntry?.url || '');
+                    }}
+                    icon={<RefreshCw className="w-3.5 h-3.5" />}
+                  >
+                    Use Catalogue Photo
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Personal photos are stored securely in Supabase Storage and linked only to this vehicle.
+                </p>
+              </div>
+            </div>
+          </div>
 
           {/* Section 1: Vehicle Identity & Powertrain */}
           <div className="space-y-4">

@@ -5,6 +5,7 @@ import { Button } from '../common/Button';
 import { NumberPlate } from '../common/NumberPlate';
 import { FuelType, TransmissionType, BodyType } from '../../types';
 import { SearchableLocationSelect } from '../common/SearchableLocationSelect';
+import { getCatalogueImageEntry } from '../../services/vehicleImageService';
 
 export const AddVehicleModal: React.FC = () => {
   const { isAddVehicleOpen, closeAddVehicle, addVehicle } = useApp();
@@ -66,7 +67,7 @@ export const AddVehicleModal: React.FC = () => {
         lastServiceKm: Math.max(0, (parseInt(odoKm, 10) || 10000) - 5000),
         nextServiceDueDate: '2027-06-10',
         nextServiceDueKm: (parseInt(odoKm, 10) || 10000) + 10000,
-        image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+        image: getCatalogueImageEntry(make, model)?.url || '',
         isPrimary: false,
         city,
         state,

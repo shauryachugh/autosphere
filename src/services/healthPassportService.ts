@@ -130,7 +130,7 @@ class HealthPassportService {
             engineNumber: data.engine_number || 'EN7849129A',
             previousOwnersCount: data.previous_owners_count || 1,
             color: data.color || 'Pearl White',
-            photos: data.photos || [data.image_url || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80'],
+            photos: data.photos || (data.image_url ? [data.image_url] : []),
             notes: data.notes || '',
             insurancePolicyNumber: data.insurance_policy_number,
             insuranceProvider: data.insurance_provider,

@@ -18,6 +18,7 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { NumberPlate } from '../common/NumberPlate';
+import { VehicleImage } from '../common/VehicleImage';
 import { formatINR, formatKm } from '../../utils/formatters';
 import { CurrentVehicleAnalysis } from '../../types/replacement.types';
 import { FuelType, TransmissionType, BodyType, Vehicle } from '../../types';
@@ -116,10 +117,13 @@ export const CurrentVehicleStep: React.FC<CurrentVehicleStepProps> = ({
                       : 'bg-dark-850 border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <img
-                    src={v.image}
-                    alt={v.model}
-                    className="w-12 h-10 rounded-lg object-cover border border-slate-700 shrink-0"
+                  <VehicleImage
+                    make={v.make}
+                    model={v.model}
+                    image={v.image}
+                    fuelType={v.fuelType}
+                    bodyType={v.bodyType}
+                    className="w-12 h-10 rounded-lg shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-white truncate">

@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { aiAssistantService } from '../services/aiAssistantService';
 import { synthesizeVehicleContext } from '../services/aiContextService';
 import { formatVehicleEfficiency } from '../utils/vehicleEconomy';
+import { getCatalogueImageEntry } from '../services/vehicleImageService';
 import { 
   Vehicle, 
   Expense, 
@@ -162,7 +163,7 @@ function mapDbVehicleToFrontend(v: any): Vehicle {
     nextServiceDueDate: v.next_service_due_date || '2027-02-10',
     nextServiceDueKm: v.next_service_due_km || 30000,
     healthScore: v.health_score || 95,
-    image: v.image_url || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+    image: v.image_url || getCatalogueImageEntry(v.make, v.model)?.url || '',
     isPrimary: Boolean(v.is_primary),
     city: v.registration_city,
     state: v.registration_state,
@@ -462,7 +463,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lastServiceKm: Math.max(0, (newVehicleData.odoKm || 10000) - 5000),
       nextServiceDueDate: '2027-06-10',
       nextServiceDueKm: (newVehicleData.odoKm || 10000) + 10000,
-      image: newVehicleData.image || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80',
+      image: newVehicleData.image || getCatalogueImageEntry(newVehicleData.make, newVehicleData.model)?.url || '',
       powerBhp: newVehicleData.fuelType === 'electric' ? 145 : 170,
       torqueNm: newVehicleData.fuelType === 'electric' ? 250 : 350,
       fastagBalanceINR: 1000,
@@ -609,6 +610,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           dbUpdates.avg_efficiency = computedAvgEfficiency;
         }
         if (updates.healthScore !== undefined) dbUpdates.health_score = updates.healthScore;
+        if ('image' in updates) dbUpdates.image_url = updates.image ?? null;
         if (updates.currentFuelPercent !== undefined) dbUpdates.current_fuel_percent = updates.currentFuelPercent;
         if (updates.isPrimary !== undefined) dbUpdates.is_primary = updates.isPrimary;
         if (updates.insuranceExpiryDate !== undefined) dbUpdates.insurance_expiry_date = updates.insuranceExpiryDate;
