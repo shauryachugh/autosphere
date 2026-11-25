@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Sparkles, 
   Check, 
@@ -26,6 +26,11 @@ interface RankedCarsStepProps {
   rankedCars: ReplacementCarTCO[];
   currentCarTCO: CurrentCarTCO;
   selectedCarIds: string[];
+  filterFuel: string;
+  onFilterFuelChange: (fuel: string) => void;
+  sortBy: 'match' | 'price' | 'tco' | 'efficiency';
+  onSortByChange: (sort: 'match' | 'price' | 'tco' | 'efficiency') => void;
+  onResetFilters: () => void;
   onToggleCarSelection: (id: string) => void;
   onBack: () => void;
   onProceedToCompare: () => void;
@@ -35,12 +40,15 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
   rankedCars,
   currentCarTCO,
   selectedCarIds,
+  filterFuel,
+  onFilterFuelChange,
+  sortBy,
+  onSortByChange,
+  onResetFilters,
   onToggleCarSelection,
   onBack,
   onProceedToCompare,
 }) => {
-  const [filterFuel, setFilterFuel] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'match' | 'price' | 'tco' | 'efficiency'>('match');
 
   // Filter cars
   let displayedCars = rankedCars.filter((item) => {
@@ -105,8 +113,9 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
             { label: 'CNG', value: 'cng' },
           ].map((f) => (
             <button
+              type="button"
               key={f.value}
-              onClick={() => setFilterFuel(f.value)}
+              onClick={() => onFilterFuelChange(f.value)}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                 filterFuel === f.value
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
@@ -116,6 +125,15 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
               {f.label}
             </button>
           ))}
+          {filterFuel !== 'all' && (
+            <button
+              type="button"
+              onClick={onResetFilters}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 border border-amber-500/30 transition-all"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
 
         {/* Sort Dropdown */}
@@ -123,7 +141,7 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
           <span className="text-slate-400">Sort by:</span>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => onSortByChange(e.target.value as any)}
             className="bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500 font-medium"
           >
             <option value="match">Smart Match Score</option>
@@ -148,7 +166,26 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
       </div>
 
       {/* Grid of Recommendation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {displayedCars.length === 0 ? (
+        <Card className="p-10 text-center border-dashed border-slate-800 bg-dark-900">
+          <div className="max-w-md mx-auto space-y-3">
+            <SlidersHorizontal className="w-10 h-10 text-slate-600 mx-auto" />
+            <h3 className="text-base font-bold text-white">No Vehicles Match Selected Filters</h3>
+            <p className="text-xs text-slate-400">
+              No cars in the catalogue matched all your active filters ({filterFuel === 'all' ? 'All Fuel Types' : filterFuel.toUpperCase()}).
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button type="button" variant="secondary" size="sm" onClick={onBack}>
+                Adjust Budget & Preferences
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={onResetFilters}>
+                Reset Filters
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {displayedCars.map((item) => {
           const isSelected = selectedCarIds.includes(item.car.id);
           const annualFuelSavings = Math.round(
@@ -333,7 +370,8 @@ export const RankedCarsStep: React.FC<RankedCarsStepProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Navigation Footer */}
       <div className="flex items-center justify-between pt-4 border-t border-slate-800">

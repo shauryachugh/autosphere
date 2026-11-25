@@ -5,6 +5,7 @@ import { Button } from '../common/Button';
 import { NumberPlate } from '../common/NumberPlate';
 import { FuelType, TransmissionType, BodyType } from '../../types';
 import { SearchableLocationSelect } from '../common/SearchableLocationSelect';
+import { SearchableRtoSelect } from '../common/SearchableRtoSelect';
 import { getCatalogueImageEntry } from '../../services/vehicleImageService';
 
 export const AddVehicleModal: React.FC = () => {
@@ -25,6 +26,8 @@ export const AddVehicleModal: React.FC = () => {
   const [regYear, setRegYear] = useState('2024');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [rtoCode, setRtoCode] = useState('');
+  const [rtoOffice, setRtoOffice] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -71,6 +74,8 @@ export const AddVehicleModal: React.FC = () => {
         isPrimary: false,
         city,
         state,
+        rtoCode: rtoCode || undefined,
+        rtoOffice: rtoOffice || undefined,
         fastagBalanceINR: 1200,
         connectedCarPlatform: 'AdrenoX',
       });
@@ -321,12 +326,26 @@ export const AddVehicleModal: React.FC = () => {
               selectedState={state}
               selectedCity={city}
               onLocationChange={(s, c) => {
+                if (s.name !== state) {
+                  setRtoCode('');
+                  setRtoOffice('');
+                }
                 setState(s.name);
                 setCity(c.name);
               }}
               showFuelSnippet={false}
             />
           </div>
+
+          <SearchableRtoSelect
+            selectedState={state}
+            selectedRtoCode={rtoCode}
+            selectedRtoOffice={rtoOffice}
+            onSelectRto={(rto) => {
+              setRtoCode(rto?.code || '');
+              setRtoOffice(rto?.officeName || '');
+            }}
+          />
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">

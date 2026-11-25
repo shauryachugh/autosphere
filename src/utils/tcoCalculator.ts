@@ -302,7 +302,21 @@ export function rankReplacementCars(
   currentTCO: CurrentCarTCO,
   currentCarResaleValue: number
 ): ReplacementCarTCO[] {
-  const evaluatedCars = candidates.map((car) => {
+  // Enforce user-selected filters strictly — never silently fall back to 'all'
+  const filteredCandidates = candidates.filter((car) => {
+    if (criteria.preferredFuelType && criteria.preferredFuelType !== 'all' && car.fuelType !== criteria.preferredFuelType) {
+      return false;
+    }
+    if (criteria.vehicleCategory && criteria.vehicleCategory !== 'all' && car.bodyType !== criteria.vehicleCategory) {
+      return false;
+    }
+    if (criteria.transmissionPreference && criteria.transmissionPreference !== 'all' && car.transmission !== criteria.transmissionPreference) {
+      return false;
+    }
+    return true;
+  });
+
+  const evaluatedCars = filteredCandidates.map((car) => {
     const tco = calculateReplacementCarTCO(car, criteria, currentCarResaleValue);
 
     // --- FACTOR 1: Budget Compatibility (Weight: 25%) ---
@@ -425,26 +439,36 @@ export function rankReplacementCars(
   return evaluatedCars.sort((a, b) => b.matchScore - a.matchScore);
 }
 
-// 6. Generate Objective, Rigorous Final Verdict
+// 6. Generate Objective, Rigorous Final Verdict strictly from currently selected cars
 export function generateFinalVerdict(
   currentTCO: CurrentCarTCO,
-  rankedCars: ReplacementCarTCO[],
+  selectedCars: ReplacementCarTCO[],
   criteria: ReplacementRequirements,
   currentAnalysis: CurrentVehicleAnalysis
 ): FinalVerdict {
-  if (!rankedCars || rankedCars.length === 0) {
+  if (!selectedCars || selectedCars.length === 0) {
     return {
       outcome: 'KEEP_CURRENT',
-      headline: 'KEEP YOUR CURRENT CAR',
-      summary: 'No replacement vehicles match your criteria closely enough to justify new capital expenditure.',
-      financialJustification: 'Keeping your existing car avoids capital lock-in, RTO road taxes, and dealer margins.',
+      headline: 'SELECT VEHICLES TO COMPARE',
+      summary: 'Select vehicles to generate your comparison.',
+      financialJustification: 'No replacement vehicles are currently selected for comparison.',
       fiveYearNetDifferenceINR: 0,
-      keyInsights: ['Maintain regular periodic servicing', 'Save capital until your vehicle reaches 1,00,000+ km'],
-      actionSteps: ['Check tyre pressures and fluid levels regularly'],
+      bestReplacementCar: undefined,
+      keyInsights: ['Select at least one replacement vehicle in Step 3 to evaluate 5-year TCO'],
+      actionSteps: ['Return to Ranked Recommendations and select vehicles to compare'],
     };
   }
 
-  const bestCar = rankedCars[0];
+  // Pick the best car strictly among the user's currently selected vehicles
+  const sortedSelection = [...selectedCars].sort((a, b) => b.matchScore - a.matchScore);
+  const bestCar = sortedSelection[0];
+  const otherSelectedNames = sortedSelection
+    .slice(1)
+    .map((c) => `${c.car.make} ${c.car.model}`)
+    .join(' and ');
+  const comparisonContext = otherSelectedNames
+    ? ` Among your selected vehicles (${sortedSelection.map((c) => `${c.car.make} ${c.car.model}`).join(', ')}), ${bestCar.car.make} ${bestCar.car.model} achieved the strongest overall score (${bestCar.matchScore}/100) with a 5-year net TCO of ₹${bestCar.fiveYearTotalOwnershipCostINR.toLocaleString('en-IN')}.`
+    : ` Evaluated for your selected ${bestCar.car.make} ${bestCar.car.model} (${bestCar.car.variant}).`;
   const fiveYearCurrentNet = currentTCO.fiveYearTotalOwnershipCost;
   const fiveYearBestNet = bestCar.fiveYearTotalOwnershipCostINR;
 
@@ -470,7 +494,7 @@ export function generateFinalVerdict(
     // REPLACEMENT SAVES SUBSTANTIAL MONEY (e.g. high monthly km user switching from thirsty diesel/petrol to EV/CNG)
     outcome = 'REPLACEMENT_FINANCIALLY_BENEFICIAL';
     headline = 'REPLACEMENT MAY BE FINANCIALLY BENEFICIAL';
-    summary = `Upgrading to the ${bestCar.car.make} ${bestCar.car.model} will save you approximately ₹${Math.abs(fiveYearNetDifferenceINR).toLocaleString('en-IN')} over the next 5 years.`;
+    summary = `Upgrading to the ${bestCar.car.make} ${bestCar.car.model} will save you approximately ₹${Math.abs(fiveYearNetDifferenceINR).toLocaleString('en-IN')} over the next 5 years.${comparisonContext}`;
     financialJustification = `Your high commute of ${criteria.monthlyDrivingDistanceKm.toLocaleString('en-IN')} km/month causes steep ongoing fuel (₹${currentTCO.annualFuelExpenditure.toLocaleString('en-IN')}/yr) and escalating repair expenses. The replacement's ultra-low running cost (₹${bestCar.annualFuelCostINR.toLocaleString('en-IN')}/yr) outweighs its loan interest and depreciation.`;
 
     keyInsights.push(`Net 5-year ownership savings: ₹${Math.abs(fiveYearNetDifferenceINR).toLocaleString('en-IN')} in your pocket`);
@@ -485,7 +509,7 @@ export function generateFinalVerdict(
     // MARGINAL FINANCIAL VARIANCE & CURRENT CAR HAS AGE / RELIABILITY RISK
     outcome = 'CONSIDER_UPGRADING';
     headline = 'CONSIDER UPGRADING';
-    summary = `The 5-year cost difference between keeping your car and upgrading to the ${bestCar.car.make} ${bestCar.car.model} is relatively narrow (~₹${Math.abs(fiveYearNetDifferenceINR).toLocaleString('en-IN')}).`;
+    summary = `The 5-year cost difference between keeping your car and upgrading to the ${bestCar.car.make} ${bestCar.car.model} is relatively narrow (~₹${Math.abs(fiveYearNetDifferenceINR).toLocaleString('en-IN')}).${comparisonContext}`;
     financialJustification = `While purchasing the ${bestCar.car.make} ${bestCar.car.model} costs an estimated ₹${fiveYearNetDifferenceINR.toLocaleString('en-IN')} more across 5 years, this small premium gives you a brand-new vehicle with 5-star crash safety, full factory warranty, modern ADAS, and zero mechanical breakdown anxiety.`;
 
     keyInsights.push(`Five-year cost difference is modest (~₹${Math.round(fiveYearNetDifferenceINR / 60).toLocaleString('en-IN')}/month)`);
@@ -500,7 +524,7 @@ export function generateFinalVerdict(
     // KEEPING CURRENT CAR IS BY FAR THE SMARTEST FINANCIAL DECISION
     outcome = 'KEEP_CURRENT';
     headline = 'KEEP YOUR CURRENT CAR';
-    summary = `Financially, keeping your ${currentAnalysis.make} ${currentAnalysis.model} is much smarter than buying a replacement, saving you ₹${fiveYearNetDifferenceINR.toLocaleString('en-IN')} over 5 years.`;
+    summary = `Financially, keeping your ${currentAnalysis.make} ${currentAnalysis.model} is much smarter than buying a replacement, saving you ₹${fiveYearNetDifferenceINR.toLocaleString('en-IN')} over 5 years.${comparisonContext}`;
     financialJustification = `Although the ${bestCar.car.make} ${bestCar.car.model} offers lower fuel expenses, buying it requires ₹${(bestCar.estimatedOnRoadPriceINR / 100000).toFixed(1)}L upfront, ₹${(bestCar.totalLoanInterestINR / 100000).toFixed(1)}L in loan financing interest, and steep new car depreciation (₹${(bestCar.annualDepreciationCostINR * 5 / 100000).toFixed(1)}L over 5 yrs). The fuel savings do not justify the new car capital outlay.`;
 
     keyInsights.push(`Retaining your car saves you ₹${fiveYearNetDifferenceINR.toLocaleString('en-IN')} across 5 years`);

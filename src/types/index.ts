@@ -43,6 +43,8 @@ export interface Vehicle {
   isPrimary: boolean;
   city: string;
   state: string;
+  rtoCode?: string;
+  rtoOffice?: string;
   fastagBalanceINR: number;
   connectedCarPlatform?: 'AdrenoX' | 'Tata iRA' | 'Hyundai Bluelink' | 'Suzuki Connect' | 'Kia Connect';
   connectedStatus: 'online' | 'standby' | 'disconnected';
@@ -220,6 +222,8 @@ export interface UserProfile {
   phone: string;
   city: string;
   state: string;
+  rtoCode?: string;
+  rtoOffice?: string;
   fastagWalletBalance: number;
   defaultFuelType: FuelType;
   drivingMonthlyAverageKm: number;

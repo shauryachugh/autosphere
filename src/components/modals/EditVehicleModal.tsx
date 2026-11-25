@@ -19,6 +19,7 @@ import {
 import { Button } from '../common/Button';
 import { FuelType, TransmissionType, Vehicle } from '../../types';
 import { SearchableLocationSelect } from '../common/SearchableLocationSelect';
+import { SearchableRtoSelect } from '../common/SearchableRtoSelect';
 import { VehicleImage } from '../common/VehicleImage';
 import { getEfficiencyUnit, getEffectiveActualMileage } from '../../utils/vehicleEconomy';
 import {
@@ -41,6 +42,8 @@ interface EditFormState {
   monthlyKmDriven: string;
   city: string;
   state: string;
+  rtoCode: string;
+  rtoOffice: string;
   purchaseDate: string;
   purchasePriceINR: string;
   estimatedResaleValueINR: string;
@@ -69,6 +72,8 @@ function buildInitialFormState(v: Vehicle): EditFormState {
       v.monthlyKmDriven != null && v.monthlyKmDriven >= 0 ? v.monthlyKmDriven.toString() : '',
     city: v.city || '',
     state: v.state || '',
+    rtoCode: v.rtoCode || '',
+    rtoOffice: v.rtoOffice || '',
     purchaseDate: v.purchaseDate ? v.purchaseDate.split('T')[0] : '',
     purchasePriceINR:
       v.purchasePriceINR != null && v.purchasePriceINR > 0 ? v.purchasePriceINR.toString() : '',
@@ -270,6 +275,8 @@ export const EditVehicleModal: React.FC = () => {
         monthlyKmDriven,
         city,
         state,
+        rtoCode: form.rtoCode.trim() || undefined,
+        rtoOffice: form.rtoOffice.trim() || undefined,
         purchaseDate: form.purchaseDate.trim() || undefined,
         purchasePriceINR,
         estimatedResaleValueINR,
@@ -696,7 +703,14 @@ export const EditVehicleModal: React.FC = () => {
                 selectedCity={form.city}
                 onLocationChange={(newState, newCity) => {
                   setForm((prev) =>
-                    prev ? { ...prev, state: newState.name, city: newCity.name } : prev
+                    prev
+                      ? {
+                          ...prev,
+                          state: newState.name,
+                          city: newCity.name,
+                          ...(newState.name !== prev.state ? { rtoCode: '', rtoOffice: '' } : {}),
+                        }
+                      : prev
                   );
                   if (fieldErrors.location) {
                     setFieldErrors((prev) => {
@@ -711,6 +725,23 @@ export const EditVehicleModal: React.FC = () => {
                 <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.location}</p>
               )}
             </div>
+
+            <SearchableRtoSelect
+              selectedState={form.state}
+              selectedRtoCode={form.rtoCode}
+              selectedRtoOffice={form.rtoOffice}
+              onSelectRto={(rto) => {
+                setForm((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        rtoCode: rto?.code || '',
+                        rtoOffice: rto?.officeName || '',
+                      }
+                    : prev
+                );
+              }}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>

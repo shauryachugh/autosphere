@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -41,9 +42,21 @@ import { recommendationService } from '../services/recommendationService';
 export const Recommendations: React.FC = () => {
   const { activeVehicle, activeVehicleExpenses, showToast } = useApp();
   const { user, isGuest } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Wizard Step: 1 = Current Vehicle, 2 = Requirements, 3 = Ranked Matches, 4 = Comparison Matrix, 5 = Final Verdict
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(() => {
+    const stepParam = Number(searchParams.get('step'));
+    if (stepParam >= 1 && stepParam <= 5) return stepParam as 1 | 2 | 3 | 4 | 5;
+    return 1;
+  });
+
+  // Sort state persisted in URL query params
+  const [sortBy, setSortBy] = useState<'match' | 'price' | 'tco' | 'efficiency'>(() => {
+    const s = searchParams.get('sort');
+    if (s === 'price' || s === 'tco' || s === 'efficiency' || s === 'match') return s;
+    return 'match';
+  });
 
   // Saved analyses drawer
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
@@ -96,31 +109,79 @@ export const Recommendations: React.FC = () => {
     };
   });
 
-  // 2. Replacement Criteria State
-  const [replacementCriteria, setReplacementCriteria] = useState<ReplacementRequirements>({
-    maxPurchaseBudgetINR: 2500000,
-    preferredMonthlyEmiINR: 28000,
-    downPaymentINR: 400000,
-    applyResaleAsDownPayment: true,
-    loanTenureYears: 5,
-    loanInterestRatePercent: 9.0,
-    preferredFuelType: 'all',
-    transmissionPreference: 'all',
-    vehicleCategory: 'all',
-    monthlyDrivingDistanceKm: 1250,
-    state: currentVehicleData.state || 'Karnataka',
-    city: currentVehicleData.city || 'Bengaluru',
-    cityDrivingPercent: 70,
-    highwayDrivingPercent: 30,
+  // 2. Replacement Criteria State (initialized from URL query params if present)
+  const [replacementCriteria, setReplacementCriteria] = useState<ReplacementRequirements>(() => {
+    const fuelParam = searchParams.get('fuel');
+    const bodyParam = searchParams.get('body');
+    const transParam = searchParams.get('trans');
+    const budgetParam = Number(searchParams.get('budget'));
+    const emiParam = Number(searchParams.get('emi'));
+    const stateParam = searchParams.get('state');
+    const cityParam = searchParams.get('city');
+
+    return {
+      maxPurchaseBudgetINR: Number.isFinite(budgetParam) && budgetParam >= 500000 ? budgetParam : 2500000,
+      preferredMonthlyEmiINR: Number.isFinite(emiParam) && emiParam >= 5000 ? emiParam : 28000,
+      downPaymentINR: 400000,
+      applyResaleAsDownPayment: true,
+      loanTenureYears: 5,
+      loanInterestRatePercent: 9.0,
+      preferredFuelType: (fuelParam as any) || 'all',
+      transmissionPreference: (transParam as any) || 'all',
+      vehicleCategory: (bodyParam as any) || 'all',
+      monthlyDrivingDistanceKm: 1250,
+      state: stateParam || currentVehicleData.state || 'Karnataka',
+      city: cityParam || currentVehicleData.city || 'Bengaluru',
+      cityDrivingPercent: 70,
+      highwayDrivingPercent: 30,
+    };
   });
 
   // 3. Calculated TCO & Ranked Cars
   const [currentCarTCO, setCurrentCarTCO] = useState<CurrentCarTCO>(() =>
     calculateCurrentCarTCO(currentVehicleData)
   );
-  const [rankedCars, setRankedCars] = useState<ReplacementCarTCO[]>([]);
-  const [selectedCarIds, setSelectedCarIds] = useState<string[]>([]);
-  const [finalVerdict, setFinalVerdict] = useState<FinalVerdict | null>(null);
+  const [rankedCars, setRankedCars] = useState<ReplacementCarTCO[]>(() => {
+    const stepParam = Number(searchParams.get('step'));
+    if (stepParam >= 3) {
+      return rankReplacementCars(
+        indianCarCatalogue,
+        replacementCriteria,
+        calculateCurrentCarTCO(currentVehicleData),
+        currentVehicleData.currentEstimatedResaleValue
+      );
+    }
+    return [];
+  });
+  const [selectedCarIds, setSelectedCarIds] = useState<string[]>(() => {
+    const selParam = searchParams.get('selected');
+    if (selParam) {
+      return selParam.split(',').filter(Boolean).slice(0, 3);
+    }
+    return [];
+  });
+
+  // Sync non-sensitive filter & step state to URL query parameters for Back/Refresh persistence
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    nextParams.set('step', String(currentStep));
+    if (replacementCriteria.preferredFuelType !== 'all') {
+      nextParams.set('fuel', replacementCriteria.preferredFuelType);
+    }
+    if (replacementCriteria.vehicleCategory !== 'all') {
+      nextParams.set('body', replacementCriteria.vehicleCategory);
+    }
+    if (replacementCriteria.transmissionPreference !== 'all') {
+      nextParams.set('trans', replacementCriteria.transmissionPreference);
+    }
+    nextParams.set('budget', String(replacementCriteria.maxPurchaseBudgetINR));
+    nextParams.set('emi', String(replacementCriteria.preferredMonthlyEmiINR));
+    if (replacementCriteria.state) nextParams.set('state', replacementCriteria.state);
+    if (replacementCriteria.city) nextParams.set('city', replacementCriteria.city);
+    if (sortBy !== 'match') nextParams.set('sort', sortBy);
+    if (selectedCarIds.length > 0) nextParams.set('selected', selectedCarIds.join(','));
+    setSearchParams(nextParams, { replace: true });
+  }, [currentStep, replacementCriteria, sortBy, selectedCarIds, setSearchParams]);
 
   // Load saved analyses on mount
   useEffect(() => {
@@ -151,7 +212,7 @@ export const Recommendations: React.FC = () => {
   const handleReplacementCriteriaSubmit = (criteria: ReplacementRequirements) => {
     setReplacementCriteria(criteria);
 
-    // Run deterministic ranking engine
+    // Run deterministic ranking engine with strict filter enforcement
     const ranked = rankReplacementCars(
       indianCarCatalogue,
       criteria,
@@ -161,20 +222,68 @@ export const Recommendations: React.FC = () => {
 
     setRankedCars(ranked);
 
-    // Pre-select top 2-3 matching cars for comparison
-    const initialSelection = ranked.slice(0, 3).map((r) => r.car.id);
-    setSelectedCarIds(initialSelection);
+    // Preserve any existing selections still valid in the filtered list, or select top 2-3 matches
+    setSelectedCarIds((prev) => {
+      const stillValid = prev.filter((id) => ranked.some((r) => r.car.id === id));
+      if (stillValid.length > 0) return stillValid;
+      return ranked.slice(0, 3).map((r) => r.car.id);
+    });
 
-    // Generate deterministic verdict
-    const verdict = generateFinalVerdict(currentCarTCO, ranked, criteria, currentVehicleData);
-    setFinalVerdict(verdict);
     setIsSaved(false);
-
     setCurrentStep(3);
   };
 
-  // Toggle selection for comparison matrix (max 3)
+  // Update fuel filter cleanly across Step 2, Step 3, and URL params
+  const handleFuelFilterChange = useCallback(
+    (fuel: string) => {
+      const updatedCriteria: ReplacementRequirements = {
+        ...replacementCriteria,
+        preferredFuelType: fuel as any,
+      };
+      setReplacementCriteria(updatedCriteria);
+      const ranked = rankReplacementCars(
+        indianCarCatalogue,
+        updatedCriteria,
+        currentCarTCO,
+        currentVehicleData.currentEstimatedResaleValue
+      );
+      setRankedCars(ranked);
+      setSelectedCarIds((prev) => {
+        const stillValid = prev.filter((id) => ranked.some((r) => r.car.id === id));
+        return stillValid.length > 0 ? stillValid : ranked.slice(0, 3).map((r) => r.car.id);
+      });
+      setIsSaved(false);
+    },
+    [replacementCriteria, currentCarTCO, currentVehicleData.currentEstimatedResaleValue]
+  );
+
+  // Explicit Reset Filters action
+  const handleResetFilters = useCallback(() => {
+    const resetCriteria: ReplacementRequirements = {
+      ...replacementCriteria,
+      maxPurchaseBudgetINR: 2500000,
+      preferredMonthlyEmiINR: 28000,
+      preferredFuelType: 'all',
+      transmissionPreference: 'all',
+      vehicleCategory: 'all',
+    };
+    setReplacementCriteria(resetCriteria);
+    setSortBy('match');
+    const ranked = rankReplacementCars(
+      indianCarCatalogue,
+      resetCriteria,
+      currentCarTCO,
+      currentVehicleData.currentEstimatedResaleValue
+    );
+    setRankedCars(ranked);
+    setSelectedCarIds(ranked.slice(0, 3).map((r) => r.car.id));
+    setIsSaved(false);
+    showToast('All recommendation filters reset.', 'info');
+  }, [replacementCriteria, currentCarTCO, currentVehicleData.currentEstimatedResaleValue, showToast]);
+
+  // Toggle selection for comparison matrix (max 3) and immediately invalidate stale saved state
   const handleToggleCarSelection = (id: string) => {
+    setIsSaved(false);
     if (selectedCarIds.includes(id)) {
       setSelectedCarIds(selectedCarIds.filter((cid) => cid !== id));
     } else {
@@ -186,9 +295,26 @@ export const Recommendations: React.FC = () => {
     }
   };
 
+  // Current selected cars bound by stable IDs
+  const comparedCarsList = useMemo(
+    () => rankedCars.filter((r) => selectedCarIds.includes(r.car.id)),
+    [rankedCars, selectedCarIds]
+  );
+
+  // Reactive Final Verdict tied strictly to currently selected vehicle IDs (never stale, never Tata Punch fallback)
+  const finalVerdict: FinalVerdict | null = useMemo(() => {
+    if (comparedCarsList.length === 0) return null;
+    return generateFinalVerdict(
+      currentCarTCO,
+      comparedCarsList,
+      replacementCriteria,
+      currentVehicleData
+    );
+  }, [comparedCarsList, currentCarTCO, replacementCriteria, currentVehicleData]);
+
   // Save current analysis to Supabase
   const handleSaveAnalysis = async () => {
-    if (!finalVerdict) return;
+    if (!finalVerdict || comparedCarsList.length === 0) return;
     setIsSaving(true);
     try {
       const saved = await recommendationService.saveAnalysis(
@@ -226,8 +352,7 @@ export const Recommendations: React.FC = () => {
     setReplacementCriteria(saved.replacementCriteria);
     setCurrentCarTCO(saved.currentCarTCO);
     setRankedCars(saved.recommendedCars);
-    setSelectedCarIds(saved.comparedCarIds.length > 0 ? saved.comparedCarIds : saved.recommendedCars.slice(0, 3).map(r => r.car.id));
-    setFinalVerdict(saved.verdictDetails);
+    setSelectedCarIds(saved.comparedCarIds);
     setIsSaved(true);
     setCurrentStep(4);
     showToast(`Loaded saved analysis: ${saved.title}`, 'info');
@@ -242,10 +367,9 @@ export const Recommendations: React.FC = () => {
   // Restart wizard
   const handleRestart = () => {
     setCurrentStep(1);
+    setSelectedCarIds([]);
     setIsSaved(false);
   };
-
-  const comparedCarsList = rankedCars.filter((r) => selectedCarIds.includes(r.car.id));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -350,6 +474,7 @@ export const Recommendations: React.FC = () => {
           currentCarResaleValue={currentVehicleData.currentEstimatedResaleValue}
           onBack={() => setCurrentStep(1)}
           onNext={handleReplacementCriteriaSubmit}
+          onResetFilters={handleResetFilters}
         />
       )}
 
@@ -359,6 +484,11 @@ export const Recommendations: React.FC = () => {
           rankedCars={rankedCars}
           currentCarTCO={currentCarTCO}
           selectedCarIds={selectedCarIds}
+          filterFuel={replacementCriteria.preferredFuelType}
+          onFilterFuelChange={handleFuelFilterChange}
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
+          onResetFilters={handleResetFilters}
           onToggleCarSelection={handleToggleCarSelection}
           onBack={() => setCurrentStep(2)}
           onProceedToCompare={() => setCurrentStep(4)}
@@ -370,25 +500,37 @@ export const Recommendations: React.FC = () => {
         <ComparisonDashboard
           currentVehicle={currentVehicleData}
           currentCarTCO={currentCarTCO}
-          comparedCars={comparedCarsList.length > 0 ? comparedCarsList : rankedCars.slice(0, 2)}
+          comparedCars={comparedCarsList}
           onBack={() => setCurrentStep(3)}
           onProceedToVerdict={() => setCurrentStep(5)}
         />
       )}
 
       {/* STEP 5: Final Verdict Report */}
-      {currentStep === 5 && finalVerdict && (
-        <FinalVerdictCard
-          verdict={finalVerdict}
-          currentVehicle={currentVehicleData}
-          currentCarTCO={currentCarTCO}
-          comparedCars={comparedCarsList.length > 0 ? comparedCarsList : rankedCars.slice(0, 2)}
-          isSaving={isSaving}
-          isSaved={isSaved}
-          onSaveAnalysis={handleSaveAnalysis}
-          onRestart={handleRestart}
-          onBackToCompare={() => setCurrentStep(4)}
-        />
+      {currentStep === 5 && (
+        finalVerdict && comparedCarsList.length > 0 ? (
+          <FinalVerdictCard
+            verdict={finalVerdict}
+            currentVehicle={currentVehicleData}
+            currentCarTCO={currentCarTCO}
+            comparedCars={comparedCarsList}
+            isSaving={isSaving}
+            isSaved={isSaved}
+            onSaveAnalysis={handleSaveAnalysis}
+            onRestart={handleRestart}
+            onBackToCompare={() => setCurrentStep(4)}
+          />
+        ) : (
+          <div className="p-10 text-center rounded-2xl border border-dashed border-slate-800 bg-dark-900 space-y-4">
+            <h3 className="text-lg font-bold text-white">No Vehicles Selected</h3>
+            <p className="text-sm text-slate-400">
+              Select vehicles to generate your comparison.
+            </p>
+            <Button onClick={() => setCurrentStep(3)} variant="primary" size="sm">
+              Select Vehicles in Step 3
+            </Button>
+          </div>
+        )
       )}
 
       {/* Saved Analyses Drawer Modal */}

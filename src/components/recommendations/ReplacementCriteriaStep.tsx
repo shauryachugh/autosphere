@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   SlidersHorizontal, 
   IndianRupee, 
@@ -25,6 +25,7 @@ interface ReplacementCriteriaStepProps {
   currentCarResaleValue: number;
   onBack: () => void;
   onNext: (criteria: ReplacementRequirements) => void;
+  onResetFilters?: () => void;
 }
 
 export const ReplacementCriteriaStep: React.FC<ReplacementCriteriaStepProps> = ({
@@ -32,8 +33,13 @@ export const ReplacementCriteriaStep: React.FC<ReplacementCriteriaStepProps> = (
   currentCarResaleValue,
   onBack,
   onNext,
+  onResetFilters,
 }) => {
   const [criteria, setCriteria] = useState<ReplacementRequirements>(initialCriteria);
+
+  useEffect(() => {
+    setCriteria(initialCriteria);
+  }, [initialCriteria]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,10 +227,21 @@ export const ReplacementCriteriaStep: React.FC<ReplacementCriteriaStepProps> = (
       {/* 2. Powertrain, Transmission & Body Preferences */}
       <Card
         header={
-          <span className="text-sm font-bold text-white flex items-center gap-2">
-            <Fuel className="w-4 h-4 text-cyan-400" />
-            Vehicle Type & Powertrain Preferences
-          </span>
+          <div className="flex items-center justify-between w-full">
+            <span className="text-sm font-bold text-white flex items-center gap-2">
+              <Fuel className="w-4 h-4 text-cyan-400" />
+              Vehicle Type & Powertrain Preferences
+            </span>
+            {onResetFilters && (
+              <button
+                type="button"
+                onClick={onResetFilters}
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold"
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
         }
       >
         <div className="space-y-4">

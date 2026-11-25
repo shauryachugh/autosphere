@@ -167,6 +167,8 @@ function mapDbVehicleToFrontend(v: any): Vehicle {
     isPrimary: Boolean(v.is_primary),
     city: v.registration_city,
     state: v.registration_state,
+    rtoCode: v.rto_code || undefined,
+    rtoOffice: v.rto_office || undefined,
     fastagBalanceINR: 1500,
     connectedCarPlatform: (v.connected_car_platform as any) || 'AdrenoX',
     connectedStatus: (v.connected_status as any) || 'online',
@@ -509,6 +511,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             avg_efficiency: baseVehicle.avgEfficiency || '',
             registration_state: baseVehicle.state,
             registration_city: baseVehicle.city,
+            rto_code: baseVehicle.rtoCode || null,
+            rto_office: baseVehicle.rtoOffice || null,
             power_bhp: baseVehicle.powerBhp,
             torque_nm: baseVehicle.torqueNm,
             current_fuel_percent: baseVehicle.currentFuelPercent,
@@ -617,6 +621,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (updates.pucExpiryDate !== undefined) dbUpdates.puc_expiry_date = updates.pucExpiryDate;
         if (updates.city !== undefined) dbUpdates.registration_city = updates.city;
         if (updates.state !== undefined) dbUpdates.registration_state = updates.state;
+        if ('rtoCode' in updates) dbUpdates.rto_code = updates.rtoCode ?? null;
+        if ('rtoOffice' in updates) dbUpdates.rto_office = updates.rtoOffice ?? null;
 
         const { data, error } = await (supabase.from('vehicles') as any)
           .update(dbUpdates)

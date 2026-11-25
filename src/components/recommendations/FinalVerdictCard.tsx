@@ -51,7 +51,24 @@ export const FinalVerdictCard: React.FC<FinalVerdictCardProps> = ({
   onRestart,
   onBackToCompare,
 }) => {
-  const bestCar = verdict.bestReplacementCar || comparedCars[0];
+  const bestCar = verdict.bestReplacementCar;
+
+  if (comparedCars.length === 0 || !bestCar) {
+    return (
+      <Card className="p-10 text-center border-dashed border-slate-800 bg-dark-900">
+        <div className="max-w-md mx-auto space-y-4">
+          <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />
+          <h3 className="text-lg font-bold text-white">No Vehicles Selected</h3>
+          <p className="text-sm text-slate-400">
+            Select vehicles to generate your comparison.
+          </p>
+          <Button onClick={onBackToCompare} variant="primary" size="sm">
+            Select Vehicles to Compare
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   // Export Summary Report Text / CSV
   const handleExportReport = () => {

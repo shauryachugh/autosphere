@@ -51,6 +51,23 @@ export const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({
   const [activeChartTab, setActiveChartTab] = useState<'cumulativeTco' | 'monthlySpend' | 'resale'>('cumulativeTco');
 
   // 1. Data for 5-Year Cumulative TCO Breakdown (Stacked Bar Chart)
+  if (comparedCars.length === 0) {
+    return (
+      <Card className="p-10 text-center border-dashed border-slate-800 bg-dark-900">
+        <div className="max-w-md mx-auto space-y-4">
+          <Info className="w-10 h-10 text-amber-400 mx-auto" />
+          <h3 className="text-lg font-bold text-white">No Vehicles Selected</h3>
+          <p className="text-sm text-slate-400">
+            Select vehicles to generate your comparison.
+          </p>
+          <Button onClick={onBack} variant="primary" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
+            Select Vehicles to Compare
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   const cumulativeTcoData = [
     {
       name: `Current (${currentVehicle.model})`,
@@ -119,6 +136,17 @@ export const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({
           View Final Verdict Report
         </Button>
       </div>
+
+      {comparedCars.length < 2 && (
+        <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-700/40 text-xs text-amber-200 flex items-center justify-between gap-3">
+          <span>
+            Only 1 replacement vehicle is currently selected. Select at least 2 vehicles in Step 3 for a full multi-car comparison.
+          </span>
+          <Button onClick={onBack} variant="ghost" size="sm">
+            Add More Cars
+          </Button>
+        </div>
+      )}
 
       {/* Visual Analytics Section with Chart Tabs */}
       <Card

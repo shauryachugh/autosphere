@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
   purchase_date DATE,
   registration_state TEXT NOT NULL,
   registration_city TEXT NOT NULL,
+  rto_code TEXT,
+  rto_office TEXT,
   engine_cc INT,
   battery_capacity_kwh NUMERIC(6, 2),
   power_bhp INT DEFAULT 150,
@@ -781,7 +783,6 @@ DROP POLICY IF EXISTS "Public can view listing photos" ON storage.objects;
 CREATE POLICY "Public can view listing photos" ON storage.objects
 FOR SELECT TO public
 USING (bucket_id = 'listing-photos');
-
 DROP POLICY IF EXISTS "Authenticated users can upload listing photos" ON storage.objects;
 CREATE POLICY "Authenticated users can upload listing photos" ON storage.objects
 FOR INSERT TO authenticated

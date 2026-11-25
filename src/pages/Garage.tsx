@@ -364,6 +364,11 @@ export const Garage: React.FC = () => {
                         <div className="p-2 rounded bg-dark-850 border border-slate-800">
                           <span className="text-[10px] text-slate-400 block">Registered City</span>
                           <span className="font-semibold text-white">{selectedCar.city}, {selectedCar.state}</span>
+                          {(selectedCar.rtoCode || selectedCar.rtoOffice) && (
+                            <span className="text-[10px] text-cyan-300 font-mono block mt-0.5 truncate">
+                              {[selectedCar.rtoCode, selectedCar.rtoOffice].filter(Boolean).join(' • ')}
+                            </span>
+                          )}
                         </div>
 
                         <div className="p-2 rounded bg-dark-850 border border-slate-800">

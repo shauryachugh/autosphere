@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Car,
   Filter,
@@ -28,19 +29,52 @@ import { CarVariant, IndianCity, IndianState } from '../types/automotive.types';
 import { FuelType, BodyType } from '../types';
 
 export const PricingCatalogue: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Location selection
   const [selectedState, setSelectedState] = useState<IndianState>(() => {
-    return ALL_INDIAN_STATES.find(s => s.id === 'KA') || ALL_INDIAN_STATES[0];
+    const stateParam = searchParams.get('state');
+    return (
+      ALL_INDIAN_STATES.find(
+        (s) => s.id === stateParam || s.name.toLowerCase() === (stateParam || '').toLowerCase()
+      ) ||
+      ALL_INDIAN_STATES.find((s) => s.id === 'KA') ||
+      ALL_INDIAN_STATES[0]
+    );
   });
   const [selectedCity, setSelectedCity] = useState<IndianCity>(() => {
-    return ALL_INDIAN_CITIES.find(c => c.id === 'bengaluru') || ALL_INDIAN_CITIES[0];
+    const cityParam = searchParams.get('city');
+    return (
+      ALL_INDIAN_CITIES.find(
+        (c) => c.id === cityParam || c.name.toLowerCase() === (cityParam || '').toLowerCase()
+      ) ||
+      ALL_INDIAN_CITIES.find((c) => c.id === 'bengaluru') ||
+      ALL_INDIAN_CITIES[0]
+    );
   });
 
-  // Filters
-  const [selectedManufacturer, setSelectedManufacturer] = useState<string>('all');
-  const [selectedFuelType, setSelectedFuelType] = useState<FuelType | 'all'>('all');
-  const [selectedCategory, setSelectedCategory] = useState<BodyType | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  // Filters (initialized from URL query params so Refresh & Back preserve them)
+  const [selectedManufacturer, setSelectedManufacturer] = useState<string>(
+    () => searchParams.get('brand') || 'all'
+  );
+  const [selectedFuelType, setSelectedFuelType] = useState<FuelType | 'all'>(
+    () => (searchParams.get('fuel') as FuelType | 'all') || 'all'
+  );
+  const [selectedCategory, setSelectedCategory] = useState<BodyType | 'all'>(
+    () => (searchParams.get('body') as BodyType | 'all') || 'all'
+  );
+  const [searchQuery, setSearchQuery] = useState<string>(() => searchParams.get('q') || '');
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    next.set('state', selectedState.id);
+    next.set('city', selectedCity.id);
+    if (selectedManufacturer !== 'all') next.set('brand', selectedManufacturer);
+    if (selectedFuelType !== 'all') next.set('fuel', selectedFuelType);
+    if (selectedCategory !== 'all') next.set('body', selectedCategory);
+    if (searchQuery.trim()) next.set('q', searchQuery.trim());
+    setSearchParams(next, { replace: true });
+  }, [selectedState.id, selectedCity.id, selectedManufacturer, selectedFuelType, selectedCategory, searchQuery, setSearchParams]);
 
   // Modal state
   const [modalVariant, setModalVariant] = useState<CarVariant | null>(null);

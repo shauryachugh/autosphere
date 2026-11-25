@@ -96,9 +96,18 @@ export const ALL_INDIAN_CITIES: IndianCity[] = [
   { id: 'siliguri', name: 'Siliguri', stateId: 'WB', stateName: 'West Bengal', tier: 2, rtoCodes: ['WB-73', 'WB-74'], isMetro: false, municipalParkingTaxINR: 1500, localCessPercent: 0, isActive: true },
 
   // --- RAJASTHAN ---
-  { id: 'jaipur', name: 'Jaipur', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-14', 'RJ-45'], isMetro: false, municipalParkingTaxINR: 2000, localCessPercent: 0, isActive: true },
+  { id: 'jaipur', name: 'Jaipur', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-14', 'RJ-45', 'RJ-60'], isMetro: false, municipalParkingTaxINR: 2000, localCessPercent: 0, isActive: true },
   { id: 'jodhpur', name: 'Jodhpur', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-19'], isMetro: false, municipalParkingTaxINR: 1500, localCessPercent: 0, isActive: true },
   { id: 'udaipur', name: 'Udaipur', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-27'], isMetro: false, municipalParkingTaxINR: 1500, localCessPercent: 0, isActive: true },
+  { id: 'kota', name: 'Kota', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-20', 'RJ-33'], isMetro: false, municipalParkingTaxINR: 1500, localCessPercent: 0, isActive: true },
+  { id: 'ajmer', name: 'Ajmer', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-01', 'RJ-42', 'RJ-48'], isMetro: false, municipalParkingTaxINR: 1200, localCessPercent: 0, isActive: true },
+  { id: 'bikaner', name: 'Bikaner', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-07', 'RJ-50'], isMetro: false, municipalParkingTaxINR: 1200, localCessPercent: 0, isActive: true },
+  { id: 'alwar', name: 'Alwar', stateId: 'RJ', stateName: 'Rajasthan', tier: 2, rtoCodes: ['RJ-02'], isMetro: false, municipalParkingTaxINR: 1200, localCessPercent: 0, isActive: true },
+  { id: 'bhilwara', name: 'Bhilwara', stateId: 'RJ', stateName: 'Rajasthan', tier: 3, rtoCodes: ['RJ-06', 'RJ-51'], isMetro: false, municipalParkingTaxINR: 1000, localCessPercent: 0, isActive: true },
+  { id: 'sikar', name: 'Sikar', stateId: 'RJ', stateName: 'Rajasthan', tier: 3, rtoCodes: ['RJ-23'], isMetro: false, municipalParkingTaxINR: 1000, localCessPercent: 0, isActive: true },
+  { id: 'bhiwadi', name: 'Bhiwadi', stateId: 'RJ', stateName: 'Rajasthan', tier: 3, rtoCodes: ['RJ-40'], isMetro: false, municipalParkingTaxINR: 1000, localCessPercent: 0, isActive: true },
+  { id: 'sri-ganganagar', name: 'Sri Ganganagar', stateId: 'RJ', stateName: 'Rajasthan', tier: 3, rtoCodes: ['RJ-13', 'RJ-56'], isMetro: false, municipalParkingTaxINR: 1000, localCessPercent: 0, isActive: true },
+  { id: 'jaisalmer', name: 'Jaisalmer', stateId: 'RJ', stateName: 'Rajasthan', tier: 3, rtoCodes: ['RJ-15', 'RJ-55'], isMetro: false, municipalParkingTaxINR: 1000, localCessPercent: 0, isActive: true },
 
   // --- KERALA ---
   { id: 'kochi', name: 'Kochi', stateId: 'KL', stateName: 'Kerala', tier: 2, rtoCodes: ['KL-07', 'KL-43'], isMetro: false, municipalParkingTaxINR: 2500, localCessPercent: 1.0, isActive: true },
